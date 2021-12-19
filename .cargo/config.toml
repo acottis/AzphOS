@@ -1,0 +1,3 @@
+[build]
+target = "i586-pc-windows-msvc"
+rustflags = ["-C", "linker=lld-link-11", "-C", "link-args=/entry:entry /subsystem:native /nodefaultlib"]
