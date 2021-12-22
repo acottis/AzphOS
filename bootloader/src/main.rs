@@ -11,10 +11,11 @@ fn panic(_info: &core::panic::PanicInfo) -> !{
 
 #[no_mangle]
 fn entry() {
-
+    use core::fmt::Write;
     let mut vga = display::Vga::init();
     vga.clear();
-    vga.print("Hello from rustia");
+    vga.write_str("Hello from rustia").unwrap();
+    //write!(&mut vga, "Test");
 
     
     loop {}
