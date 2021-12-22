@@ -12,8 +12,13 @@ enum Error{
     CargoBuildFailed(String),
     CantConvertToUtf(std::string::FromUtf8Error),
     Consume(std::io::Error),
-    BadSigniture,
-    Seek(std::io::Error)
+    BadDOSSigniture,
+    BadPESigniture,
+    Seek(std::io::Error),
+    UnsupportedMachineType(u16),
+    UnsupportedOptionalHeaderMagic(u16),
+    CantReadSection(std::io::Error),
+    CantCreateBinary(std::io::Error),
 }
 
 /// Main program loop
@@ -52,33 +57,137 @@ struct Pe;
 
 impl Pe{
     /// Takes the ref to a path and parses the PE header
+    /// https://docs.microsoft.com/en-gb/windows/win32/debug/pe-format?redirectedfrom=MSDN#ms-dos-stub-image-only
     /// 
     fn parse(path: impl AsRef<std::path::Path>) -> Result<()>{
         use std::io::Read;
         use std::io::{Seek, SeekFrom};
         const POINTER_TO_PE_HEADER_OFFSET: u64 = 0x3C;
-        const PE_SIGNITURE: [u8; 2] = *b"MZ";
-
+        const DOS_SIGNITURE: u16 = 0x5A4D; // b"MZ"
+        const PE_SIGNITURE: u32 = 0x00004550; // b"PE\0\0"
+        const COFF_HEADER_SIZE: u32 = 0x18;
 
         // Open file and get reader over its buffer
         let pe = std::fs::File::open(&path).map_err(Error::PENotFound)?;
         let mut reader = std::io::BufReader::new(&pe);
 
         // Check for magic
-        if consume!(reader, u16, "Signiture") != PE_SIGNITURE {
-            return Err(Error::BadSigniture);
+        if consume!(reader, u16, "DOS Magic") != DOS_SIGNITURE {
+            return Err(Error::BadDOSSigniture);
         }
 
         // Skip ahead to PE Header Pointer
         reader.seek(SeekFrom::Start(POINTER_TO_PE_HEADER_OFFSET)).map_err(Error::Seek)?;
+    
+        // Get the start location of the header
+        let header_pointer = consume!(reader, u32,"Pointer To PE Header");
+        println!("Header is at {:#X?}", header_pointer);
+
+        // Go to header start and find PE Magic bytes
+        reader.seek(SeekFrom::Start(header_pointer as u64)).map_err(Error::Seek)?;
+        if consume!(reader, u32, "PE Magic") != PE_SIGNITURE{
+            return Err(Error::BadPESigniture);
+        }
+
+        // Get the machine type
+        MachineType::try_from(consume!(reader, u16, "Machine Type"))?;
+
+        // Get number of sections
+        let num_of_sections = consume!(reader, u16, "Number of Sections");
+
+        // Get time Date stamp (Epoch Seconds)
+        consume!(reader, u32, "TimeDate Stamp");
+
+        // Get Pointer to Symbol Table (Deprecated)
+        consume!(reader, u32, "Pointer to Symbol Table");
+
+        // Get Numeber of Symbol Table (Deprecated)
+        consume!(reader, u32, "Number of Symbol Table");
+
+        // Size Of the Optional Header
+        let optional_header_size = consume!(reader, u16, "Size of Optional Header");
+
+        // Get Characteristics
+        let characteristics = Characteristics::get(consume!(reader, u16, "Characteristics"))?;
+        println!("{:?}", characteristics);
+
+        // Get COFF Field Magic
+        OptionalHeaderMagic::try_from(consume!(reader, u16, "Optional Header Magic"))?;
+
+        // Get MajorLinkerVersion
+        consume!(reader, u8, "Major Linker Version");
+
+        // Get MinorLinkerVersion
+        consume!(reader, u8, "Minor Linker Version");
+
+        // Get SizeOfCode
+        consume!(reader, u32, "Size of the .text section");
+
+        // Get SizeOfInitializedData
+        consume!(reader, u32, "Size of the initialized data section");
+
+        // Get SizeOfUnInitializedData
+        consume!(reader, u32, "Size of the uninitialized data section (.BSS)");
         
-        let header_pointer = consume!(reader, u32, "Pointer To PE Header");
-        println!("Header is at {:X?}", header_pointer);
- 
+        // Get EntryPoint Address
+        let _entry = consume!(reader, u32, "Entry Point");
+
+        // Get CodeBase
+        consume!(reader, u32, "Base of Code");
+
+        // Get DataBase
+        consume!(reader, u32, "Base of Data");
+
+        // Missing the fields above, do I even need?
+        // Skip to Section tabele
+        reader.seek(SeekFrom::Start((header_pointer + COFF_HEADER_SIZE + optional_header_size as u32) as u64)).map_err(Error::Seek)?;
+
+        // Store the section tables in a Vec
+        let mut sections: Vec<Section> = Vec::new();
+
+        for _ in 0..num_of_sections{
+            let name = String::from_utf8(consume!(reader, u64, "Section Name")
+                .to_le_bytes().to_vec()).map_err(Error::CantConvertToUtf)?;
+            let virtual_size = consume!(reader, u32, "Virtual Size");
+            let virtual_addr = consume!(reader, u32, "Virtual Address");
+            let sizeof_rawdata = consume!(reader, u32, "Size Of Raw Data");
+            let pointerto_rawdata = consume!(reader, u32, "Pointer to Raw Data");
+            let pointerto_relocations = consume!(reader, u32, "Pointer to Relocations");
+            let pointerto_linenumbers = consume!(reader, u32, "Pointer to Line Numbers");
+            let num_of_relocations = consume!(reader, u16, "Number of Relocations");
+            let num_of_linenumbers = consume!(reader, u16, "Number of Line Numbers");
+            let characteristics = consume!(reader, u32, "Characteristics");
+
+            sections.push(Section {
+                name,
+                virtual_size,
+                virtual_addr,
+                sizeof_rawdata,
+                pointerto_rawdata,
+                pointerto_relocations,
+                pointerto_linenumbers,
+                num_of_relocations,
+                num_of_linenumbers,
+                characteristics
+            });
+        }
+        println!("{:#X?}", sections);
+
+
+        // Creating our small binary
+        let mut program: Vec<u8> = Vec::new();
+        program.resize_with(sections[0].virtual_size as usize, Default::default);
+
+        reader.seek(SeekFrom::Start(sections[0].pointerto_rawdata as u64)).map_err(Error::Seek)?;
+        reader.read_exact(&mut program).map_err(Error::CantReadSection)?;
+        println!("{:#X?}", program);
+
+        use std::io::Write;
+        let mut output = std::fs::File::create("bootloader/build/bootloader.flat").map_err(Error::CantCreateBinary)?;
+        output.write(&program).map_err(Error::CantCreateBinary)?;
 
         Ok(())
     }
-
 }
 
 
@@ -89,6 +198,144 @@ macro_rules! consume {
     ($reader:expr, $ty:ty, $field:expr) => {{
         let mut buf = [0u8; std::mem::size_of::<$ty>()];
         $reader.read_exact(&mut buf).map_err(Error::Consume)?;
-        buf
+        println!("{}: LE: {:#X}, BE: {:#X}", 
+            $field, 
+            <$ty>::from_le_bytes(buf),
+            <$ty>::from_be_bytes(buf),
+        );
+        <$ty>::from_le_bytes(buf)
     }}
+}
+
+/// Machine Type
+/// https://docs.microsoft.com/en-gb/windows/win32/debug/pe-format?redirectedfrom=MSDN#machine-types
+/// 
+#[repr(u16)]
+enum MachineType{
+    I386,
+}
+
+impl TryFrom<u16> for MachineType{
+
+    type Error = self::Error;
+
+    fn try_from(bytes: u16) -> Result<MachineType>{
+        Ok(match bytes {
+            0x14c => Self::I386,
+            _ => return Err(Error::UnsupportedMachineType
+                (bytes)),
+        })
+    }
+}
+
+#[repr(u16)]
+enum OptionalHeaderMagic{
+    Pe32Plus,
+}
+
+impl TryFrom<u16> for OptionalHeaderMagic{
+
+    type Error = self::Error;
+
+    fn try_from(bytes: u16) -> Result<OptionalHeaderMagic>{
+        Ok(match bytes {
+            0x10B => Self::Pe32Plus,
+            _ => return Err(Error::UnsupportedOptionalHeaderMagic(bytes)),
+        })
+    }
+}
+
+/// https://docs.microsoft.com/en-gb/windows/win32/debug/pe-format?redirectedfrom=MSDN#characteristics
+/// 
+#[repr(u16)]
+#[derive(Debug)]
+enum Characteristics{
+    RelocsStripped = 0x0001,
+    ExecutableImage = 0x0002,
+    LineNumsStripped = 0x0004,
+    LocalSymsStripped = 0x0008,
+    AggressiveWSTrim = 0x0010,
+    LargeAddressAware = 0x0020,
+    Reserved = 0x0040,
+    BytesReversedLo = 0x0080,
+    Bits32 = 0x0100,
+    DebugStipped = 0x0200,
+    RemovableRunFromSwap = 0x0400,
+    NetRunFromSwap = 0x0800,
+    System = 0x1000,
+    Dll = 0x2000,
+    UpSystemOnly = 0x4000,
+    BytesReversedHi = 0x8000,
+}
+
+impl Characteristics{
+
+    fn get(bytes: u16) -> Result<Vec<Characteristics>> {
+        let mut characteristics = Vec::new();
+        if bytes & Self::RelocsStripped as u16 == Self::RelocsStripped as u16 {
+            characteristics.push(Self::RelocsStripped)
+        }
+        if bytes & Self::ExecutableImage as u16 == Self::ExecutableImage as u16 {
+            characteristics.push(Self::ExecutableImage)
+        }
+        if bytes & Self::LineNumsStripped as u16 == Self::LineNumsStripped as u16 {
+            characteristics.push(Self::LineNumsStripped)
+        }
+        if bytes & Self::LocalSymsStripped as u16 == Self::LocalSymsStripped as u16 {
+            characteristics.push(Self::LocalSymsStripped)
+        }
+        if bytes & Self::AggressiveWSTrim as u16 == Self::AggressiveWSTrim as u16 {
+            characteristics.push(Self::AggressiveWSTrim)
+        }
+        if bytes & Self::LargeAddressAware as u16 == Self::LargeAddressAware as u16 {
+            characteristics.push(Self::LargeAddressAware)
+        }
+        if bytes & Self::Reserved as u16 == Self::Reserved as u16 {
+            characteristics.push(Self::Reserved)
+        }
+        if bytes & Self::BytesReversedLo as u16 == Self::BytesReversedLo as u16 {
+            characteristics.push(Self::BytesReversedLo)
+        }
+        if bytes & Self::Bits32 as u16 == Self::Bits32 as u16 {
+            characteristics.push(Self::Bits32)
+        }
+        if bytes & Self::DebugStipped as u16 == Self::DebugStipped as u16 {
+            characteristics.push(Self::DebugStipped)
+        }
+        if bytes & Self::RemovableRunFromSwap as u16 == Self::RemovableRunFromSwap as u16 {
+            characteristics.push(Self::RemovableRunFromSwap)
+        }
+        if bytes & Self::NetRunFromSwap as u16 == Self::NetRunFromSwap as u16 {
+            characteristics.push(Self::NetRunFromSwap)
+        }
+        if bytes & Self::System as u16 == Self::System as u16 {
+            characteristics.push(Self::System)
+        }
+        if bytes & Self::Dll as u16 == Self::Dll as u16 {
+            characteristics.push(Self::Dll)
+        }        
+        if bytes & Self::UpSystemOnly as u16 == Self::UpSystemOnly as u16 {
+            characteristics.push(Self::UpSystemOnly)
+        }        
+        if bytes & Self::BytesReversedHi as u16 == Self::BytesReversedHi as u16 {
+            characteristics.push(Self::BytesReversedHi)
+        }
+        Ok(characteristics)
+    }
+
+}
+
+#[allow(dead_code)]
+#[derive(Debug)]
+struct Section{
+    name: String,
+    virtual_size: u32,
+    virtual_addr: u32,
+    sizeof_rawdata: u32,
+    pointerto_rawdata: u32,
+    pointerto_relocations: u32,
+    pointerto_linenumbers: u32,
+    num_of_relocations: u16,
+    num_of_linenumbers: u16,
+    characteristics: u32
 }
