@@ -1,3 +1,5 @@
+default: boot
+
 build:
 	cargo run
 	nasm bootloader/asm/stage0.asm -f bin -o bootloader/build/stage0.bin

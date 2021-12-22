@@ -81,7 +81,6 @@ impl Pe{
     
         // Get the start location of the header
         let header_pointer = consume!(reader, u32,"Pointer To PE Header");
-        println!("Header is at {:#X?}", header_pointer);
 
         // Go to header start and find PE Magic bytes
         reader.seek(SeekFrom::Start(header_pointer as u64)).map_err(Error::Seek)?;
@@ -173,19 +172,18 @@ impl Pe{
         }
         println!("{:#X?}", sections);
 
-
         // Creating our small binary
         let mut program: Vec<u8> = Vec::new();
         program.resize_with(sections[0].virtual_size as usize, Default::default);
 
         reader.seek(SeekFrom::Start(sections[0].pointerto_rawdata as u64)).map_err(Error::Seek)?;
         reader.read_exact(&mut program).map_err(Error::CantReadSection)?;
-        println!("{:#X?}", program);
+        println!("{:X?}", program);
 
         use std::io::Write;
         let mut output = std::fs::File::create("bootloader/build/bootloader.flat").map_err(Error::CantCreateBinary)?;
         output.write(&program).map_err(Error::CantCreateBinary)?;
-
+        
         Ok(())
     }
 }
@@ -198,11 +196,11 @@ macro_rules! consume {
     ($reader:expr, $ty:ty, $field:expr) => {{
         let mut buf = [0u8; std::mem::size_of::<$ty>()];
         $reader.read_exact(&mut buf).map_err(Error::Consume)?;
-        println!("{}: LE: {:#X}, BE: {:#X}", 
-            $field, 
-            <$ty>::from_le_bytes(buf),
-            <$ty>::from_be_bytes(buf),
-        );
+        // println!("{}: LE: {:#X}, BE: {:#X}", 
+        //     $field, 
+        //     <$ty>::from_le_bytes(buf),
+        //     <$ty>::from_be_bytes(buf),
+        // );
         <$ty>::from_le_bytes(buf)
     }}
 }
