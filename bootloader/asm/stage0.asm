@@ -27,7 +27,6 @@ entry:
     jmp 0x0008:pm_entry
 
 [bits 32]
-[extern entry]
 
 pm_entry:
     ; Set up all data selectors
@@ -40,7 +39,8 @@ pm_entry:
     
     ; cli
     ; hlt
-    incbin "bootloader/build/bootloader.flat"
+    jmp ENTRY
+    ; incbin "bootloader/build/bootloader.flat"
 
 align 8
 pm_gdt_base:
@@ -52,6 +52,8 @@ pm_gdt:
     dw (pm_gdt - pm_gdt_base) - 1
     dd pm_gdt_base
 
-; times 510-($-$$) db 0
-; dw 0xaa55
+times 255-($-$$) db 0
+dw 0xaa55
 
+; This is at address 0x7d00
+incbin "bootloader/build/bootloader.flat"

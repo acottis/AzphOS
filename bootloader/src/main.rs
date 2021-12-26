@@ -6,17 +6,15 @@ mod display;
 
 #[panic_handler]
 fn panic(_info: &core::panic::PanicInfo) -> !{
+    print!("Panic!!!!");
     loop {}
 }
 
 #[no_mangle]
 fn entry() {
-    use core::fmt::Write;
-    let mut vga = display::Vga::init();
-    vga.clear();
-    vga.write_str("Hello from rustia").unwrap();
-    //write!(&mut vga, "Test");
 
-    
+    print!("Hello World");
+    //print!("{}", 10);
     loop {}
 }
+

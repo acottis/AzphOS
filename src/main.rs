@@ -1,3 +1,5 @@
+use std::io::BufReader;
+
 /// Custom Result type to take advantage of our custom Error messaging
 ///  
 type Result<T> = std::result::Result<T, self::Error>;
@@ -8,8 +10,10 @@ type Result<T> = std::result::Result<T, self::Error>;
 enum Error{
     PENotFound(std::io::Error),
     CargoMissing(std::io::Error),
+    NasmMissing(std::io::Error),
     CommandDidNotComplete,
     CargoBuildFailed(String),
+    NasmBuildFailed(String),
     CantConvertToUtf(std::string::FromUtf8Error),
     Consume(std::io::Error),
     BadDOSSigniture,
@@ -17,20 +21,67 @@ enum Error{
     Seek(std::io::Error),
     UnsupportedMachineType(u16),
     UnsupportedOptionalHeaderMagic(u16),
-    CantReadSection(std::io::Error),
     CantCreateBinary(std::io::Error),
 }
 
 /// Main program loop
 /// 
 fn main(){
+    const FLATTENED_IMAGE_PATH: &'static str = "bootloader/build/bootloader.flat";
+    
     // This function compiles the bootloader that we will use as a stage0
     build_bootloader().expect("Failed to build bootloader");
 
     // Parse the bootloader
-    // TODO
-    Pe::parse("bootloader/target/i586-pc-windows-msvc/release/bootloader.exe").expect("Failed to parse PE");
+    let pe = Pe::parse("bootloader/target/i586-pc-windows-msvc/release/bootloader.exe").expect("Failed to parse PE");
+    //println!("{:#X?}", pe.sections);
+
+    let flattened_bytes = pe.flatten().expect("Could not flatten PE");
+    //println!("{:X?}", program_bytes);
+    println!("Flattened PE is {} bytes", &flattened_bytes.len());
+    
+    write_flattened_image(&flattened_bytes, FLATTENED_IMAGE_PATH).expect("Could not write image to disk");
+    println!("Entry at: {:#X}", pe.entry_point);
+
+    build_asm(pe.entry_point).expect("Cannot assemble stage0.asm");
+    println!("PE Written to: {}", FLATTENED_IMAGE_PATH)
+
+
 }
+/// This functions writes the flattened PE to disk
+/// 
+fn write_flattened_image(bytes: &[u8], path :&str) -> Result<()>{
+    use std::io::Write;
+    let mut output = std::fs::File::create(path).map_err(Error::CantCreateBinary)?;
+    output.write(&bytes).map_err(Error::CantCreateBinary)?;
+    Ok(())
+}
+/// This function compiles the assembly code with the entry point found in the PE
+/// 
+fn build_asm(entry: u32) -> Result<()>{
+    use std::process::Command;
+
+    let res = Command::new("nasm").args(
+        ["bootloader/asm/stage0.asm", 
+        "-f", 
+        "bin",
+        &format!("-DENTRY={:#X}", entry),
+        "-o", 
+        "bootloader/build/stage0.bin"]
+        ).output().map_err(Error::NasmMissing)?;
+
+    match &res.status.code(){
+        Some(0) => {
+            println!("Bootloader: Nasm sucess");
+            Ok(())
+        },
+        Some(_) => {
+            let stderr = String::from_utf8(res.stderr).map_err(Error::CantConvertToUtf)?;
+            return Err(Error::NasmBuildFailed(stderr))
+        },
+        None => return Err(Error::CommandDidNotComplete),
+    }
+ }
 /// This function comiples the bootloader in the subfolder and returns an error if it fails
 ///
 fn build_bootloader() -> Result<()>{
@@ -53,13 +104,17 @@ fn build_bootloader() -> Result<()>{
 
 /// Unsure
 /// 
-struct Pe;
+struct Pe{
+    entry_point: u32,
+    sections: Vec<Section>,
+    bytes: Vec<u8>
+}
 
 impl Pe{
     /// Takes the ref to a path and parses the PE header
     /// https://docs.microsoft.com/en-gb/windows/win32/debug/pe-format?redirectedfrom=MSDN#ms-dos-stub-image-only
     /// 
-    fn parse(path: impl AsRef<std::path::Path>) -> Result<()>{
+    fn parse(path: impl AsRef<std::path::Path>) -> Result<Self>{
         use std::io::Read;
         use std::io::{Seek, SeekFrom};
         const POINTER_TO_PE_HEADER_OFFSET: u64 = 0x3C;
@@ -108,7 +163,7 @@ impl Pe{
 
         // Get Characteristics
         let characteristics = Characteristics::get(consume!(reader, u16, "Characteristics"))?;
-        println!("{:?}", characteristics);
+        //println!("{:?}", characteristics);
 
         // Get COFF Field Magic
         OptionalHeaderMagic::try_from(consume!(reader, u16, "Optional Header Magic"))?;
@@ -129,13 +184,17 @@ impl Pe{
         consume!(reader, u32, "Size of the uninitialized data section (.BSS)");
         
         // Get EntryPoint Address
-        let _entry = consume!(reader, u32, "Entry Point");
-
+        let entry = consume!(reader, u32, "Entry Point");
+        //println!("PE Entry Point: {:#X} ", entry);
         // Get CodeBase
         consume!(reader, u32, "Base of Code");
 
         // Get DataBase
         consume!(reader, u32, "Base of Data");
+
+        // Get image base
+        let image_base = consume!(reader, u32, "Base of Image");
+        //println!("Image base: {:#X}", image_base);
 
         // Missing the fields above, do I even need?
         // Skip to Section tabele
@@ -170,23 +229,33 @@ impl Pe{
                 characteristics
             });
         }
-        println!("{:#X?}", sections);
 
-        // Creating our small binary
-        let mut program: Vec<u8> = Vec::new();
-        program.resize_with(sections[0].virtual_size as usize, Default::default);
+        reader.seek(SeekFrom::Start(0)).map_err(Error::Seek)?;
+        let mut bytes: Vec<u8> = Vec::new();
+        reader.read_to_end(&mut bytes).map_err(Error::Consume)?;
 
-        reader.seek(SeekFrom::Start(sections[0].pointerto_rawdata as u64)).map_err(Error::Seek)?;
-        reader.read_exact(&mut program).map_err(Error::CantReadSection)?;
-        println!("{:X?}", program);
-
-        use std::io::Write;
-        let mut output = std::fs::File::create("bootloader/build/bootloader.flat").map_err(Error::CantCreateBinary)?;
-        output.write(&program).map_err(Error::CantCreateBinary)?;
+        Ok(Self {
+            //entry_point: entry+image_base,
+            entry_point: image_base,
+            sections,
+            bytes,
+        })
+    }
+    
+    fn flatten(&self) -> Result<&[u8]>{
+    
+        // Creating our small binary   
+        let size = ((self.sections[self.sections.len() - 1].pointerto_rawdata + self.sections[self.sections.len() - 1].sizeof_rawdata)
+            - self.sections[0].pointerto_rawdata) as usize;
+    
+        let start = self.sections[0].pointerto_rawdata as usize;
         
-        Ok(())
+        let program = self.bytes.get(start .. (start+size)).unwrap();
+
+        Ok(program)
     }
 }
+
 
 
 /// Helper for reading through file Buffer

@@ -89,7 +89,11 @@ unsafe extern "C" fn memset(s: *mut u8, c: i32, n: usize) -> *mut u8 {
 }
 
 #[no_mangle]
-unsafe extern fn _aulldiv(){}
+unsafe extern fn _aulldiv(){
+    panic!();
+}
 
 #[no_mangle]
-unsafe extern fn _aullrem(){}
+unsafe extern fn _aullrem(){
+    panic!();
+}
