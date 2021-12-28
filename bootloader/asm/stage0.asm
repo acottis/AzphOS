@@ -36,24 +36,30 @@ pm_entry:
     mov fs, ax
     mov gs, ax
     mov ss, ax
-    
-    ; cli
-    ; hlt
-    jmp ENTRY
-    ; incbin "bootloader/build/bootloader.flat"
+
+    ; Set up a basic stack
+    mov esp, 0x7c00
+
+    ; Jump into Rust! (entry_point is a defined variable during build)
+    call entry_point
+
+; ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+; 32-bit protected mode GDT
 
 align 8
 pm_gdt_base:
-    dq 0x0000000000000000
-    dq 0x00CF9A0000000FFF
-    dq 0x00CF920000000FFF
+	dq 0x0000000000000000
+	dq 0x00CF9A000000FFFF
+	dq 0x00CF92000000FFFF
 
 pm_gdt:
-    dw (pm_gdt - pm_gdt_base) - 1
-    dd pm_gdt_base
+	dw (pm_gdt - pm_gdt_base) - 1
+	dd pm_gdt_base
 
-times 255-($-$$) db 0
+; ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+times 510-($-$$) db 0
 dw 0xaa55
 
-; This is at address 0x7d00
 incbin "bootloader/build/bootloader.flat"

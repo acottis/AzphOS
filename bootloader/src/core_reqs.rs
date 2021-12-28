@@ -2,8 +2,6 @@
 /// and it just has to exist.
 #[export_name="_fltused"]
 pub static FLTUSED: usize = 0;
-
-
 /// libc `memmove` implementation in Rust
 ///
 /// # Parameters
@@ -89,11 +87,11 @@ unsafe extern "C" fn memset(s: *mut u8, c: i32, n: usize) -> *mut u8 {
 }
 
 #[no_mangle]
-unsafe extern fn _aulldiv(){
-    panic!();
+unsafe extern fn _aulldiv() -> f64 {
+    0.0
 }
 
 #[no_mangle]
-unsafe extern fn _aullrem(){
-    panic!();
+unsafe extern fn _aullrem() -> f64{
+    0.0
 }

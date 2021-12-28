@@ -1,5 +1,3 @@
-use std::io::BufReader;
-
 /// Custom Result type to take advantage of our custom Error messaging
 ///  
 type Result<T> = std::result::Result<T, self::Error>;
@@ -8,6 +6,7 @@ type Result<T> = std::result::Result<T, self::Error>;
 /// 
 #[derive(Debug)]
 enum Error{
+    CouldNotReadSectionData,
     PENotFound(std::io::Error),
     CargoMissing(std::io::Error),
     NasmMissing(std::io::Error),
@@ -38,7 +37,7 @@ fn main(){
 
     let flattened_bytes = pe.flatten().expect("Could not flatten PE");
     //println!("{:X?}", program_bytes);
-    println!("Flattened PE is {} bytes", &flattened_bytes.len());
+    println!("Flattened PE is {:#X} bytes", &flattened_bytes.len());
     
     write_flattened_image(&flattened_bytes, FLATTENED_IMAGE_PATH).expect("Could not write image to disk");
     println!("Entry at: {:#X}", pe.entry_point);
@@ -65,7 +64,7 @@ fn build_asm(entry: u32) -> Result<()>{
         ["bootloader/asm/stage0.asm", 
         "-f", 
         "bin",
-        &format!("-DENTRY={:#X}", entry),
+        &format!("-Dentry_point={:#X}", entry),
         "-o", 
         "bootloader/build/stage0.bin"]
         ).output().map_err(Error::NasmMissing)?;
@@ -162,7 +161,7 @@ impl Pe{
         let optional_header_size = consume!(reader, u16, "Size of Optional Header");
 
         // Get Characteristics
-        let characteristics = Characteristics::get(consume!(reader, u16, "Characteristics"))?;
+        let _characteristics = Characteristics::get(consume!(reader, u16, "Characteristics"))?;
         //println!("{:?}", characteristics);
 
         // Get COFF Field Magic
@@ -184,7 +183,7 @@ impl Pe{
         consume!(reader, u32, "Size of the uninitialized data section (.BSS)");
         
         // Get EntryPoint Address
-        let entry = consume!(reader, u32, "Entry Point");
+        let _entry = consume!(reader, u32, "Entry Point");
         //println!("PE Entry Point: {:#X} ", entry);
         // Get CodeBase
         consume!(reader, u32, "Base of Code");
@@ -242,16 +241,47 @@ impl Pe{
         })
     }
     
-    fn flatten(&self) -> Result<&[u8]>{
-    
-        // Creating our small binary   
-        let size = ((self.sections[self.sections.len() - 1].pointerto_rawdata + self.sections[self.sections.len() - 1].sizeof_rawdata)
-            - self.sections[0].pointerto_rawdata) as usize;
-    
-        let start = self.sections[0].pointerto_rawdata as usize;
-        
-        let program = self.bytes.get(start .. (start+size)).unwrap();
+    fn flatten(&self) -> Result<Vec<u8>>{
+        println!("{:#X?}", self.sections);
+        // Creating our small binary
 
+        let mut section_bytes: Vec<(u32, &[u8])> = vec![];
+
+        for section in &self.sections{
+
+            let start = section.pointerto_rawdata as usize;
+            let end = start + section.virtual_size as usize;
+            let vaddr = section.virtual_addr;
+
+            let bytes = if start != 0 {
+                self.bytes.get(start..end).ok_or(Error::CouldNotReadSectionData)?
+            }else{
+                &[0u8; 4]
+            };
+
+
+            section_bytes.push((vaddr, bytes));
+        }
+
+        let mut program: Vec<u8> = vec![];
+        for (i, (vaddr, bytes)) in section_bytes.iter().enumerate(){
+            if i == section_bytes.len() - 1 { 
+                program.extend_from_slice(&bytes);
+                break;
+            }
+
+            let padding_sz =  (section_bytes[i+1].0 - section_bytes[i].0) as usize;
+
+            let program_len = program.len();
+            program.extend_from_slice(&bytes);
+            program.resize(padding_sz + program_len, 0);
+            println!("Padding: {:#X}", padding_sz);
+        }
+
+        println!("{:X?}", section_bytes);
+        println!("{:X?}", program);
+
+        //let program = &[0u8;4];
         Ok(program)
     }
 }
