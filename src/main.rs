@@ -33,16 +33,14 @@ fn main(){
 
     // Parse the bootloader
     let pe = Pe::parse("bootloader/target/i586-pc-windows-msvc/release/bootloader.exe").expect("Failed to parse PE");
-    //println!("{:#X?}", pe.sections);
 
     let flattened_bytes = pe.flatten().expect("Could not flatten PE");
-    //println!("{:X?}", program_bytes);
     println!("Flattened PE is {:#X} bytes", &flattened_bytes.len());
     
     write_flattened_image(&flattened_bytes, FLATTENED_IMAGE_PATH).expect("Could not write image to disk");
-    println!("Entry at: {:#X}", pe.entry_point);
+    println!("Image Base at: {:#X}, Raw Entry Point in PE file: {:#X}", pe.image_base, pe.entry_point);
 
-    build_asm(pe.entry_point).expect("Cannot assemble stage0.asm");
+    build_asm(pe.image_base + pe.entry_point).expect("Cannot assemble stage0.asm");
     println!("PE Written to: {}", FLATTENED_IMAGE_PATH)
 
 
@@ -60,6 +58,7 @@ fn write_flattened_image(bytes: &[u8], path :&str) -> Result<()>{
 fn build_asm(entry: u32) -> Result<()>{
     use std::process::Command;
 
+    println!("Nasm thinks entry is: {:#X}", entry);
     let res = Command::new("nasm").args(
         ["bootloader/asm/stage0.asm", 
         "-f", 
@@ -103,8 +102,10 @@ fn build_bootloader() -> Result<()>{
 
 /// Unsure
 /// 
+#[derive(Debug)]
 struct Pe{
     entry_point: u32,
+    image_base: u32,
     sections: Vec<Section>,
     bytes: Vec<u8>
 }
@@ -174,8 +175,8 @@ impl Pe{
         consume!(reader, u8, "Minor Linker Version");
 
         // Get SizeOfCode
-        consume!(reader, u32, "Size of the .text section");
-
+        let text_size = consume!(reader, u32, "Size of the .text section");
+        println!(".text size: {:#X}", text_size);
         // Get SizeOfInitializedData
         consume!(reader, u32, "Size of the initialized data section");
 
@@ -183,8 +184,8 @@ impl Pe{
         consume!(reader, u32, "Size of the uninitialized data section (.BSS)");
         
         // Get EntryPoint Address
-        let _entry = consume!(reader, u32, "Entry Point");
-        //println!("PE Entry Point: {:#X} ", entry);
+        let entry_point = consume!(reader, u32, "Entry Point");
+
         // Get CodeBase
         consume!(reader, u32, "Base of Code");
 
@@ -193,7 +194,6 @@ impl Pe{
 
         // Get image base
         let image_base = consume!(reader, u32, "Base of Image");
-        //println!("Image base: {:#X}", image_base);
 
         // Missing the fields above, do I even need?
         // Skip to Section tabele
@@ -234,8 +234,8 @@ impl Pe{
         reader.read_to_end(&mut bytes).map_err(Error::Consume)?;
 
         Ok(Self {
-            //entry_point: entry+image_base,
-            entry_point: image_base,
+            image_base,
+            entry_point,
             sections,
             bytes,
         })
@@ -246,12 +246,17 @@ impl Pe{
         // Creating our small binary
 
         let mut section_bytes: Vec<(u32, &[u8])> = vec![];
+        let mut program: Vec<u8> = vec![];
+        
+        //let mut flattened = std::vec![0u8; 0x1000];
+        //program.extend_from_slice(&[0u8; 0x400]);
 
         for section in &self.sections{
 
             let start = section.pointerto_rawdata as usize;
-            let end = start + section.virtual_size as usize;
+            let end = start + section.sizeof_rawdata as usize;
             let vaddr = section.virtual_addr;
+            let vsize = section.virtual_size;
 
             let bytes = if start != 0 {
                 self.bytes.get(start..end).ok_or(Error::CouldNotReadSectionData)?
@@ -259,29 +264,38 @@ impl Pe{
                 &[0u8; 4]
             };
 
-
-            section_bytes.push((vaddr, bytes));
-        }
-
-        let mut program: Vec<u8> = vec![];
-        for (i, (vaddr, bytes)) in section_bytes.iter().enumerate(){
-            if i == section_bytes.len() - 1 { 
-                program.extend_from_slice(&bytes);
-                break;
+            let to_copy: usize = std::cmp::min(vsize, section.sizeof_rawdata) as usize;
+            println!("Base + Virt: {:#X}", self.image_base + vaddr);
+           // program.extend_from_slice(&(self.image_base + vaddr).to_le_bytes());
+            if program.len() < section.virtual_addr as usize{
+                program.resize(section.virtual_addr as usize, 0);
             }
+            program.extend_from_slice(&bytes[..to_copy]);
 
-            let padding_sz =  (section_bytes[i+1].0 - section_bytes[i].0) as usize;
+           //flattened.extend_from_slice(&bytes);
 
-            let program_len = program.len();
-            program.extend_from_slice(&bytes);
-            program.resize(padding_sz + program_len, 0);
-            println!("Padding: {:#X}", padding_sz);
+           //section_bytes.push((vaddr, bytes));
         }
+        
+        //flattened[vaddr as usize..(vaddr + to_copy) as usize ].copy_from_slice(bytes);
+        
+        // for (i, (vaddr, bytes)) in section_bytes.iter().enumerate(){
+        //     println!("Virtual Address: {:#X}, Number of Bytes: {:#X}\nBytes: {:X?}", vaddr, bytes.len(), bytes);
+        //     if i == section_bytes.len() - 1 { 
+        //         program.extend_from_slice(&bytes);
+        //         break;
+        //     }
 
-        println!("{:X?}", section_bytes);
-        println!("{:X?}", program);
+        //     let padding_sz =  (section_bytes[i+1].0 - section_bytes[i].0) as usize;
 
-        //let program = &[0u8;4];
+        //     let program_len = program.len();
+        //     program.extend_from_slice(&bytes);
+        //     program.resize(padding_sz + program_len, 0);
+        //     println!("Padding: {:#X}", padding_sz);
+        // }
+
+        println!("Raw Program: {:X?}", program);
+
         Ok(program)
     }
 }

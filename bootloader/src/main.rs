@@ -16,9 +16,9 @@ fn panic(_info: &core::panic::PanicInfo) -> ! {
 #[no_mangle]
 fn entry() {
     
-    
-    print!("Hello World");
-    //print!("{}", "Hello world");
+    unsafe {core::ptr::write(0xB8000 as *mut u16, 0x0245);}
+    //print!("Hello World");
+    print!("{}", 69);
     unsafe {
         asm!("cli");
         asm!("hlt");

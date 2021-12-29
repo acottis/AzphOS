@@ -10,12 +10,12 @@ impl Vga{
         let buffer_base = 0xB8000 as *mut u16;
         let mut offset = 0;
         unsafe { 
-            *buffer_base.offset(offset) = 0x0245;
-            // for byte in bytes(){
-            //     *buffer_base.offset(offset) = 0x0200 + (*byte as u16);
+            //*buffer_base.offset(offset) = 0x0245;
+            for byte in bytes{
+                *buffer_base.offset(offset) = 0x0200 + (*byte as u16);
                 
-            //     offset += 1;
-            // }
+                offset += 1;
+            }
         }   
     }
 
@@ -36,14 +36,14 @@ impl core::fmt::Write for VgaWriter{
         Ok(())
     }
 
-    fn write_fmt(&mut self, args: core::fmt::Arguments<'_>) -> core::fmt::Result {
-        if let Some(s) = args.as_str() {
-            self.write_str(s);
-        } else {
-            //write(&mut self, args);
-        }
-        Ok(())
-    }
+    // fn write_fmt(&mut self, args: core::fmt::Arguments<'_>) -> core::fmt::Result {
+    //     if let Some(s) = args.as_str() {
+    //         self.write_str(s);
+    //     } else {
+    //         //write(&mut self, args);
+    //     }
+    //     Ok(())
+    // }
 }
 
 #[macro_export]
