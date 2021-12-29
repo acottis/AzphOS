@@ -1,3 +1,4 @@
+; Stolen from GamozoLabs https://twitter.com/gamozolabs
 [org  0x7c00]
 [bits 16]
 

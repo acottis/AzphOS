@@ -34,13 +34,16 @@ fn main(){
     // Parse the bootloader
     let pe = Pe::parse("bootloader/target/i586-pc-windows-msvc/release/bootloader.exe").expect("Failed to parse PE");
 
+    // Get a flattened version of the PE
     let flattened_bytes = pe.flatten().expect("Could not flatten PE");
     let rust_len = &flattened_bytes.len();
     println!("Bootloader is {:#X} out of {:#X}, {:.2}% used", rust_len, 0x8000, (*rust_len as f32/0x8000 as f32)*100f32 );
     
+    // Write the flat PE to a file
     write_flattened_image(&flattened_bytes, FLATTENED_IMAGE_PATH).expect("Could not write image to disk");
     println!("Image Base at: {:#X}, Entry Point in PE file is: {:#X}", pe.image_base, pe.entry_point);
 
+    // Link the PE to the stage0.asm bootloader and set the entry point to match the PE first instruction
     build_asm(pe.image_base + pe.entry_point).expect("Cannot assemble stage0.asm");
     println!("PE Written to: {}", FLATTENED_IMAGE_PATH)
 
@@ -240,11 +243,11 @@ impl Pe{
             bytes,
         })
     }
-    
+    /// Converts the sections into a flat binary we can append to our stage0.asm
+    ///
     fn flatten(&self) -> Result<Vec<u8>>{
         println!("{:#X?}", self.sections);
         // Creating our small binary
-
         let mut program: Vec<u8> = vec![];
 
         for section in &self.sections{
@@ -258,18 +261,13 @@ impl Pe{
                 &[0u8; 4]
             };
             //let to_copy: usize = std::cmp::min(section.virtual_size, section.sizeof_rawdata) as usize;
-
-            if program.len() < section.virtual_addr as usize{
-                program.resize(section.virtual_addr as usize, 0);
-            }
+            program.resize(section.virtual_addr as usize, 0);
             program.extend_from_slice(&bytes);
         }
         //println!("Raw Program: {:X?}", program);
         Ok(program)
     }
 }
-
-
 
 /// Helper for reading through file Buffer
 /// Takes an expression (BufReader), A Type Big enough for the field we are passing (u32), A String describing the field

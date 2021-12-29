@@ -4,22 +4,25 @@
 
 mod core_reqs;
 mod display;
-//mod serial;
+mod cpu;
+mod serial;
 
 #[panic_handler]
+#[allow(unreachable_code)]
 fn panic(info: &core::panic::PanicInfo) -> ! {
-    print!("Panic! {}", info);
-    loop {}
+    print!("{}", info);
+    cpu::halt();
 }
 
 #[no_mangle]
 fn entry() {
-    
-    unsafe {core::ptr::write(0xB8000 as *mut u16, 0x0245);}
     clear!();
     print!("{}", 69);
-    unsafe {
-        asm!("cli");
-        asm!("hlt");
-    }
+    print!("Helo world\n");
+    let s = serial::SerialPort::init();
+    print!("{:#X?}\n", s);
+    s.read();
+    print!("Helo world2\n");
+    s.read();
+    cpu::halt();
 }
