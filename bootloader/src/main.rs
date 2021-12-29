@@ -7,9 +7,8 @@ mod display;
 //mod serial;
 
 #[panic_handler]
-fn panic(_info: &core::panic::PanicInfo) -> ! {
-    //print!("Panic!!!!");
-    //unsafe {core::ptr::write(0xB8000 as *mut u16, 0x0245);}
+fn panic(info: &core::panic::PanicInfo) -> ! {
+    print!("Panic! {}", info);
     loop {}
 }
 
@@ -17,7 +16,7 @@ fn panic(_info: &core::panic::PanicInfo) -> ! {
 fn entry() {
     
     unsafe {core::ptr::write(0xB8000 as *mut u16, 0x0245);}
-    //print!("Hello World");
+    clear!();
     print!("{}", 69);
     unsafe {
         asm!("cli");

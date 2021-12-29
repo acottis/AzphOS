@@ -35,10 +35,11 @@ fn main(){
     let pe = Pe::parse("bootloader/target/i586-pc-windows-msvc/release/bootloader.exe").expect("Failed to parse PE");
 
     let flattened_bytes = pe.flatten().expect("Could not flatten PE");
-    println!("Flattened PE is {:#X} bytes", &flattened_bytes.len());
+    let rust_len = &flattened_bytes.len();
+    println!("Bootloader is {:#X} out of {:#X}, {:.2}% used", rust_len, 0x8000, (*rust_len as f32/0x8000 as f32)*100f32 );
     
     write_flattened_image(&flattened_bytes, FLATTENED_IMAGE_PATH).expect("Could not write image to disk");
-    println!("Image Base at: {:#X}, Raw Entry Point in PE file: {:#X}", pe.image_base, pe.entry_point);
+    println!("Image Base at: {:#X}, Entry Point in PE file is: {:#X}", pe.image_base, pe.entry_point);
 
     build_asm(pe.image_base + pe.entry_point).expect("Cannot assemble stage0.asm");
     println!("PE Written to: {}", FLATTENED_IMAGE_PATH)
@@ -58,7 +59,6 @@ fn write_flattened_image(bytes: &[u8], path :&str) -> Result<()>{
 fn build_asm(entry: u32) -> Result<()>{
     use std::process::Command;
 
-    println!("Nasm thinks entry is: {:#X}", entry);
     let res = Command::new("nasm").args(
         ["bootloader/asm/stage0.asm", 
         "-f", 
@@ -70,7 +70,7 @@ fn build_asm(entry: u32) -> Result<()>{
 
     match &res.status.code(){
         Some(0) => {
-            println!("Bootloader: Nasm sucess");
+            println!("Bootloader: Nasm sucess, rust entry point: {:#X}", entry);
             Ok(())
         },
         Some(_) => {
@@ -175,8 +175,8 @@ impl Pe{
         consume!(reader, u8, "Minor Linker Version");
 
         // Get SizeOfCode
-        let text_size = consume!(reader, u32, "Size of the .text section");
-        println!(".text size: {:#X}", text_size);
+        consume!(reader, u32, "Size of the .text section");
+
         // Get SizeOfInitializedData
         consume!(reader, u32, "Size of the initialized data section");
 
@@ -245,57 +245,26 @@ impl Pe{
         println!("{:#X?}", self.sections);
         // Creating our small binary
 
-        let mut section_bytes: Vec<(u32, &[u8])> = vec![];
         let mut program: Vec<u8> = vec![];
-        
-        //let mut flattened = std::vec![0u8; 0x1000];
-        //program.extend_from_slice(&[0u8; 0x400]);
 
         for section in &self.sections{
 
             let start = section.pointerto_rawdata as usize;
-            let end = start + section.sizeof_rawdata as usize;
-            let vaddr = section.virtual_addr;
-            let vsize = section.virtual_size;
+            let end = start + section.virtual_size as usize;
 
             let bytes = if start != 0 {
                 self.bytes.get(start..end).ok_or(Error::CouldNotReadSectionData)?
             }else{
                 &[0u8; 4]
             };
+            //let to_copy: usize = std::cmp::min(section.virtual_size, section.sizeof_rawdata) as usize;
 
-            let to_copy: usize = std::cmp::min(vsize, section.sizeof_rawdata) as usize;
-            println!("Base + Virt: {:#X}", self.image_base + vaddr);
-           // program.extend_from_slice(&(self.image_base + vaddr).to_le_bytes());
             if program.len() < section.virtual_addr as usize{
                 program.resize(section.virtual_addr as usize, 0);
             }
-            program.extend_from_slice(&bytes[..to_copy]);
-
-           //flattened.extend_from_slice(&bytes);
-
-           //section_bytes.push((vaddr, bytes));
+            program.extend_from_slice(&bytes);
         }
-        
-        //flattened[vaddr as usize..(vaddr + to_copy) as usize ].copy_from_slice(bytes);
-        
-        // for (i, (vaddr, bytes)) in section_bytes.iter().enumerate(){
-        //     println!("Virtual Address: {:#X}, Number of Bytes: {:#X}\nBytes: {:X?}", vaddr, bytes.len(), bytes);
-        //     if i == section_bytes.len() - 1 { 
-        //         program.extend_from_slice(&bytes);
-        //         break;
-        //     }
-
-        //     let padding_sz =  (section_bytes[i+1].0 - section_bytes[i].0) as usize;
-
-        //     let program_len = program.len();
-        //     program.extend_from_slice(&bytes);
-        //     program.resize(padding_sz + program_len, 0);
-        //     println!("Padding: {:#X}", padding_sz);
-        // }
-
-        println!("Raw Program: {:X?}", program);
-
+        //println!("Raw Program: {:X?}", program);
         Ok(program)
     }
 }
