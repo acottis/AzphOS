@@ -28,7 +28,6 @@ fn init() {
             cpu::out8(addr + 3, 0x03);    // 8 bits, no parity, one stop bit
             cpu::out8(addr + 2, 0xC7);    // Enable FIFO, clear them, with 14-byte threshold
             cpu::out8(addr + 4, 0x0B);    // IRQs enabled, RTS/DSR set
-
             //cpu::out8(addr + 4, 0x1E);    // Set in loopback mode, test the serial chip
             //cpu::out8(addr + 0, 0xAE);    // Test serial chip (send byte 0xAE and check if serial returns same byte)
         }
@@ -51,15 +50,14 @@ impl core::fmt::Write for SerialWriter{
         // Check if we have initialised the Serial Ports
         let serial_initialised = unsafe { SERIALPORTS[0] != 0 };
         if !serial_initialised{
-            //crate::print!("Initialising Serial...");
             init();
+            crate::serial_print!("Initialising Serial...");
         }
         write(s.as_bytes());
 
         Ok(())
     }
 }
-
 /// This macro is how the user accesses the serial port
 /// 
 #[macro_export]
