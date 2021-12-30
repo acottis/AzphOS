@@ -9,6 +9,8 @@
 
 ## Currently implemented
 * Serial Driver (Printing Only), the make file adds a telnet connection for ```localhost::4321``` which will be available when the machine boots
+* VGA Driver (Printing Text Only)
+* Get DateTime from CMOS
 
 ## How to
 1. From the root Directory
