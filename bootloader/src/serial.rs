@@ -23,9 +23,9 @@ fn init() {
         if addr != 0{
             cpu::out8(addr + 1, 0x00);    // Disable all interrupts
             cpu::out8(addr + 3, 0x80);    // Enable DLAB (set baud rate divisor)
-            cpu::out8(addr + 0, 0x01);    // Set divisor to 3 (lo byte) 38400 baud
+            cpu::out8(addr + 0, 0x01);    // Set divisor to 1 (lo byte) 115200/1 baud
             cpu::out8(addr + 1, 0x00);    //                  (hi byte)
-            cpu::out8(addr + 3, 0x03);    // 8 bits, no parity, one stop bit
+            cpu::out8(addr + 3, 0x03);    // 8-bit: Bits 0,1  (00000011), no parity Bits 3,4,5(00000000), one stop bit: Bits 2 (00000000)
             cpu::out8(addr + 2, 0xC7);    // Enable FIFO, clear them, with 14-byte threshold
             cpu::out8(addr + 4, 0x0B);    // IRQs enabled, RTS/DSR set
             //cpu::out8(addr + 4, 0x1E);    // Set in loopback mode, test the serial chip

@@ -19,6 +19,8 @@ fn panic(info: &core::panic::PanicInfo) -> ! {
 /// ```
 #[no_mangle]
 fn entry(i: u8) {
+    clear!();
+    print!("{}\n", i);
     serial_print!("{}", "Hello from rust");
 
     cpu::halt();
