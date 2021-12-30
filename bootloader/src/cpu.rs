@@ -28,3 +28,9 @@ pub fn in8(addr: u16) -> u8{
     }
     val
 }
+/// https://wiki.osdev.org/CMOS
+#[inline]
+pub fn get_rtc_register(offset :u8) -> u8{
+    out8(0x70, offset);
+    in8(0x71)
+}

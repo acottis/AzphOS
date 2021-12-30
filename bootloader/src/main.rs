@@ -6,6 +6,8 @@ mod core_reqs;
 mod display;
 mod cpu;
 mod serial;
+mod time;
+
 
 #[panic_handler]
 fn panic(info: &core::panic::PanicInfo) -> ! {
@@ -18,10 +20,14 @@ fn panic(info: &core::panic::PanicInfo) -> ! {
 /// call entry_point
 /// ```
 #[no_mangle]
-fn entry(i: u8) {
+fn entry(entry_point: u16) {
     clear!();
-    print!("{}\n", i);
-    serial_print!("{}", "Hello from rust");
+    print!("We entered at: {:#X}\n", entry_point);
+
+    let dt = time::DateTime::now();
+    print!("Time is: {}\n", dt);
+    print!("Done\n");
+    //serial_print!("{}", "Hello from rust");
 
     cpu::halt();
 }
