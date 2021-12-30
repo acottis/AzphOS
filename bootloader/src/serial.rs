@@ -1,7 +1,6 @@
-/// This crate is for managing all Serial Port related functionality and exposes as a macro
-/// `serial_print!();` This macro can take format args and will print to Serial Port0 on
-/// the computer
-use crate::cpu::out8;
+//! This crate is for managing all Serial Port related functionality and exposes as a macro
+//! [`serial_print!`] This macro can take format args and will print to Serial Port0 on
+//! the computer
 use crate::cpu;
 
 /// The address that contains the data on what serial ports we have
@@ -36,17 +35,18 @@ fn init() {
     }
 }
 /// this function handles writes, we only write to `SERIALPORTS[0]` right now
+/// 
 fn write(bytes: &[u8]){
     let port = unsafe{ SERIALPORTS[0] };
     for byte in bytes{
-        out8(port, *byte);
+        cpu::out8(port, *byte);
     }
 }
-/// This struct is the one we implement `core::fmt::Write`
+/// This struct is the one we implement [`core::fmt::Write`]
 pub struct SerialWriter;
 
 impl core::fmt::Write for SerialWriter{
-    /// Trait implementation of `core::fmt::Write` will `init()` our serial ports if we havent already
+    /// Trait implementation of [`core::fmt::Write`] will [`init()`] our serial ports if we havent already
     fn write_str(&mut self, s: &str) -> core::fmt::Result {
         // Check if we have initialised the Serial Ports
         let serial_initialised = unsafe { SERIALPORTS[0] != 0 };

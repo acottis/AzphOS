@@ -1,3 +1,6 @@
+//! This is the hacky stuff we do to let the rust compiler compile in no standard with
+//! [`i586-pc-windows-msvc`], not written by myself for the most part.
+//! 
 /// Whether or not floats are used. This is used by the MSVC calling convention
 /// and it just has to exist.
 #[export_name="_fltused"]
@@ -67,7 +70,6 @@ unsafe extern fn memcmp(s1: *const u8, s2: *const u8, n: usize) -> i32 {
     }
     0
 }
-
 /// libc `memset` implementation in Rust
 ///
 /// # Parameters
@@ -85,12 +87,14 @@ unsafe extern "C" fn memset(s: *mut u8, c: i32, n: usize) -> *mut u8 {
     }
     s
 }
-
+/// [https://source.winehq.org/WineAPI/_aulldiv.html](https://source.winehq.org/WineAPI/_aulldiv.html)
+/// This is currently wrong.
 #[no_mangle]
 unsafe extern fn _aulldiv(_a: usize, _b: usize) -> usize{
     0
 }
-
+/// [https://source.winehq.org/WineAPI/_aullrem.html](https://source.winehq.org/WineAPI/_aullrem.html)
+/// This is currently wrong.
 #[no_mangle]
 unsafe extern fn _aullrem(_a: usize, _b: usize) -> usize{
     0

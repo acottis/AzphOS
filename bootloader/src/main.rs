@@ -8,7 +8,6 @@ mod cpu;
 mod serial;
 
 #[panic_handler]
-#[allow(unreachable_code)]
 fn panic(info: &core::panic::PanicInfo) -> ! {
     print!("{}", info);
     cpu::halt();
