@@ -16,13 +16,7 @@ fn panic(info: &core::panic::PanicInfo) -> ! {
 
 #[no_mangle]
 fn entry() {
-    clear!();
-    print!("{}", 69);
-    print!("Helo world\n");
-    let s = serial::SerialPort::init();
-    print!("{:#X?}\n", s);
-    s.read();
-    print!("Helo world2\n");
-    s.read();
+    serial_print!("{}", "Hello from rust");
+
     cpu::halt();
 }
