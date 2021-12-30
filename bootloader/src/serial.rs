@@ -38,6 +38,9 @@ fn init() {
 fn write(bytes: &[u8]){
     let port = unsafe{ SERIALPORTS[0] };
     for byte in bytes{
+        if *byte == '\n' as u8{
+            cpu::out8(port, '\r' as u8);
+        }
         cpu::out8(port, *byte);
     }
 }
@@ -51,14 +54,14 @@ impl core::fmt::Write for SerialWriter{
         let serial_initialised = unsafe { SERIALPORTS[0] != 0 };
         if !serial_initialised{
             init();
-            crate::serial_print!("Initialising Serial...");
+            crate::serial_print!("Initialising Serial...\n");
         }
         write(s.as_bytes());
 
         Ok(())
     }
 }
-/// This macro is how the user accesses the serial port
+/// This macro is how the user accesses the serial port, our implementation of [`std::print!`](https://doc.rust-lang.org/std/macro.print.html)
 /// 
 #[macro_export]
 macro_rules! serial_print {

@@ -13,8 +13,12 @@ fn panic(info: &core::panic::PanicInfo) -> ! {
     cpu::halt();
 }
 
+/// This function is called by `stage0.asm` after setting up 32bit mode and a stack at 0x7c00
+/// ```x86asm
+/// call entry_point
+/// ```
 #[no_mangle]
-fn entry() {
+fn entry(i: u8) {
     serial_print!("{}", "Hello from rust");
 
     cpu::halt();

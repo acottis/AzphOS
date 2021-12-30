@@ -43,7 +43,7 @@ impl Vga{
 /// 
 pub struct VgaWriter;
 impl VgaWriter{
-    /// calls the ['Vga::clear']
+    /// calls the [`Vga::clear`]
     pub fn clear(){
         let vga = Vga;
         vga.clear();
@@ -66,8 +66,8 @@ macro_rules! print {
             &mut $crate::display::VgaWriter, format_args!($($arg)*));
     }
 }
-/// This is a convient way to handle clearing the screen without having to get an instance of [`Vga`] or [`VgaWriter`] in 
-/// our other logic, this calls [`Vga::clear`]
+/// This is a convient way to handle clearing the screen without having to get an instance of [`VgaWriter`] or [`Vga`] in 
+/// our other logic, this calls [`VgaWriter::clear`]
 #[macro_export]
 macro_rules! clear {
     () => {

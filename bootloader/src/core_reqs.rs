@@ -1,4 +1,4 @@
-//! This is the hacky stuff we do to let the rust compiler compile in no standard with
+//! This is the hacky stuff we do to let the rust compiler compile in `#![no_std]` with
 //! [`i586-pc-windows-msvc`], not written by myself for the most part.
 //! 
 /// Whether or not floats are used. This is used by the MSVC calling convention

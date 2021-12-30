@@ -1,7 +1,7 @@
 # AzphOS
 
 ## Requirements
-1. Rust
+1. Rust (Currently on: ```1.58.0```)
 2. Rust target ```i586-pc-windows-msvc``` nightly
 2. ``LLD 13.0.0`` (This is cross platform)
 3. ```nasm```

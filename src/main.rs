@@ -27,26 +27,28 @@ enum Error{
 /// 
 fn main(){
     const FLATTENED_IMAGE_PATH: &'static str = "bootloader/build/bootloader.flat";
+    const BOOTLOADER_EXE: &'static str = "bootloader/target/i586-pc-windows-msvc/release/bootloader.exe";
     
     // This function compiles the bootloader that we will use as a stage0
     build_bootloader().expect("Failed to build bootloader");
 
     // Parse the bootloader
-    let pe = Pe::parse("bootloader/target/i586-pc-windows-msvc/release/bootloader.exe").expect("Failed to parse PE");
+    let pe = Pe::parse(BOOTLOADER_EXE).expect("Failed to parse PE");
 
     // Get a flattened version of the PE
     let flattened_bytes = pe.flatten().expect("Could not flatten PE");
     let rust_len = &flattened_bytes.len();
-    println!("Bootloader is {:#X} out of {:#X}, {:.2}% used", rust_len, 0x8000, (*rust_len as f32/0x8000 as f32)*100f32 );
     
     // Write the flat PE to a file
     write_flattened_image(&flattened_bytes, FLATTENED_IMAGE_PATH).expect("Could not write image to disk");
     println!("Image Base at: {:#X}, Entry Point in PE file is: {:#X}", pe.image_base, pe.entry_point);
-
+    
     // Link the PE to the stage0.asm bootloader and set the entry point to match the PE first instruction
     build_asm(pe.image_base + pe.entry_point).expect("Cannot assemble stage0.asm");
-    println!("PE Written to: {}", FLATTENED_IMAGE_PATH)
-
+    println!("PE Written to: {}", FLATTENED_IMAGE_PATH);
+    
+    // Tells the user how much space they have left, does not include the stag0.asm
+    println!("Bootloader is {:#X} out of {:#X}, {:.2}% used", rust_len, 0x8000, (*rust_len as f32/0x8000 as f32)*100f32 );
 
 }
 /// This functions writes the flattened PE to disk
@@ -258,7 +260,7 @@ impl Pe{
             let bytes = if start != 0 {
                 self.bytes.get(start..end).ok_or(Error::CouldNotReadSectionData)?
             }else{
-                &[0u8; 4]
+                &[0u8; 0]
             };
             //let to_copy: usize = std::cmp::min(section.virtual_size, section.sizeof_rawdata) as usize;
             program.resize(section.virtual_addr as usize, 0);
