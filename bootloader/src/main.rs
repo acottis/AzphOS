@@ -7,6 +7,7 @@ mod display;
 mod cpu;
 mod serial;
 mod time;
+mod net;
 
 
 #[panic_handler]
@@ -24,8 +25,11 @@ fn entry(entry_point: u16) {
     clear!();
     print!("We entered at: {:#X}\n", entry_point);
 
-    let dt = time::DateTime::now();
-    print!("Time is: {}\n", dt);
+    // let dt = time::DateTime::now();
+    // print!("Time is: {}\n", dt);
+
+    net::init();
+
     print!("Done\n");
     //serial_print!("{}", "Hello from rust");
 

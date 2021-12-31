@@ -105,7 +105,7 @@ fn build_bootloader() -> Result<()>{
     }
 }
 
-/// Unsure
+/// Struct for storing information we consume from the PE and also contains the raw bytes
 /// 
 #[derive(Debug)]
 struct Pe{
@@ -117,7 +117,7 @@ struct Pe{
 
 impl Pe{
     /// Takes the ref to a path and parses the PE header
-    /// https://docs.microsoft.com/en-gb/windows/win32/debug/pe-format?redirectedfrom=MSDN#ms-dos-stub-image-only
+    /// [https://docs.microsoft.com/en-gb/windows/win32/debug/pe-format?redirectedfrom=MSDN#ms-dos-stub-image-only](https://docs.microsoft.com/en-gb/windows/win32/debug/pe-format?redirectedfrom=MSDN#ms-dos-stub-image-only)
     /// 
     fn parse(path: impl AsRef<std::path::Path>) -> Result<Self>{
         use std::io::Read;
@@ -288,7 +288,7 @@ macro_rules! consume {
 }
 
 /// Machine Type
-/// https://docs.microsoft.com/en-gb/windows/win32/debug/pe-format?redirectedfrom=MSDN#machine-types
+/// [https://docs.microsoft.com/en-gb/windows/win32/debug/pe-format?redirectedfrom=MSDN#machine-types](https://docs.microsoft.com/en-gb/windows/win32/debug/pe-format?redirectedfrom=MSDN#machine-types)
 /// 
 #[repr(u16)]
 enum MachineType{

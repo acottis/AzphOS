@@ -39,7 +39,7 @@ impl DateTime{
 /// Implement display for DateTime
 impl core::fmt::Display for DateTime{
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{:X}{:X}-{:X}-{:X} {:X}:{:X}:{:X}", 
+        write!(f, "{:02X}{:02X}-{:02X}-{:02X} {:02X}:{:02X}:{:02X}", 
             self.centuary, 
             self.year,
             self.month,

@@ -57,7 +57,6 @@ impl core::fmt::Write for SerialWriter{
             crate::serial_print!("Initialising Serial...\n");
         }
         write(s.as_bytes());
-
         Ok(())
     }
 }
