@@ -7,6 +7,7 @@ mod display;
 mod cpu;
 mod serial;
 mod time;
+mod pci;
 mod net;
 
 
@@ -25,13 +26,13 @@ fn entry(entry_point: u16) {
     clear!();
     print!("We entered at: {:#X}\n", entry_point);
 
-    // let dt = time::DateTime::now();
-    // print!("Time is: {}\n", dt);
+    let dt = time::DateTime::now();
+    print!("Time is: {}\n", dt);
 
-    net::init();
+    let devices = pci::PciDevices::init();
+    crate::serial_print!("{:#X?}", devices);
 
     print!("Done\n");
-    //serial_print!("{}", "Hello from rust");
 
     cpu::halt();
 }

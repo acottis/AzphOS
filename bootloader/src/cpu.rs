@@ -5,12 +5,12 @@
 /// Prevent the processor from rebooting by halting
 #[inline]
 pub fn halt() -> ! {
-    unsafe {
-        asm!("cli");
-        asm!("hlt");
+    loop{
+        unsafe {
+            asm!("cli");
+            asm!("hlt");
+        }
     }
-    // Never hit this, needed because rust doesnt trust the above
-    loop {}
 }
 /// [https://www.felixcloutier.com/x86/out](https://www.felixcloutier.com/x86/out)
 #[inline]
@@ -22,7 +22,7 @@ pub fn out8(addr: u16, val: u8){
 #[inline]
 pub fn out32(addr: u16, val: u32){
     unsafe{
-        asm!("out dx, al", in("dx") addr, in("eax") val);
+        asm!("out dx, eax", in("dx") addr, in("eax") val);
     }
 }
 /// [https://www.felixcloutier.com/x86/in](https://www.felixcloutier.com/x86/in)
@@ -38,7 +38,7 @@ pub fn in8(addr: u16) -> u8{
 pub fn in32(addr: u16) -> u32{
     let val: u32;
     unsafe{
-        asm!("in al, dx", in("dx") addr, out("eax") val);
+        asm!("in eax, dx", in("dx") addr, out("eax") val);
     }
     val
 }
