@@ -3,17 +3,17 @@
 #![feature(asm)]
 
 mod core_reqs;
-mod display;
+//mod display;
 mod cpu;
 mod serial;
 mod time;
-mod pci;
 mod net;
+mod pci;
 
 
 #[panic_handler]
 fn panic(info: &core::panic::PanicInfo) -> ! {
-    print!("{}", info);
+    serial_print!("{}", info);
     cpu::halt();
 }
 
@@ -23,16 +23,14 @@ fn panic(info: &core::panic::PanicInfo) -> ! {
 /// ```
 #[no_mangle]
 fn entry(entry_point: u16) {
-    clear!();
-    print!("We entered at: {:#X}\n", entry_point);
+    //clear!();
+    serial_print!("We entered at: {:#X}\n", entry_point);
 
-    let dt = time::DateTime::now();
-    print!("Time is: {}\n", dt);
+    serial_print!("Time is: {}\n", time::DateTime::now());
 
-    let devices = pci::PciDevices::init();
-    crate::serial_print!("{:#X?}", devices);
+    net::init();
 
-    print!("Done\n");
+    serial_print!("Done\n");
 
     cpu::halt();
 }
