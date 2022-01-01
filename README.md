@@ -11,6 +11,8 @@
 * Serial Driver (Printing Only), the make file adds a telnet connection for ```localhost::4321``` which will be available when the machine boots
 * VGA Driver (Printing Text Only)
 * Get DateTime from CMOS
+* PCI get a list of PCI devices and parse the 128-bits of information
+* ACPI started, we got the RSD Pointer and then the RSD Table which lead us to the ACPI tables (WIP)
 
 ## How to
 1. From the root Directory
