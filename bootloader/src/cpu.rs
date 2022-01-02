@@ -48,3 +48,11 @@ pub fn get_rtc_register(offset :u8) -> u8{
     out8(0x70, offset);
     in8(0x71)
 }
+#[inline]
+pub fn get_esp() -> u32{
+    unsafe{
+        let mut x = 0;
+        asm!("mov edx, esp",  out("edx") x);
+        x
+    }
+}
