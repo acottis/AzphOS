@@ -2,4 +2,4 @@
 target = "i586-pc-windows-msvc"
 
 [target.i586-pc-windows-msvc]
-rustflags = ["-C", "linker=lld-link", "-C", "link-args=/entry:entry /subsystem:native /base:0x7e00 /fixed /align:16 /debug:dwarf /nodefaultlib"]
+rustflags = ["-C", "linker=lld", "-C", "link-args=/entry:entry /subsystem:native /base:0x7e00 /fixed /align:16 /debug:dwarf /nodefaultlib"]

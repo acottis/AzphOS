@@ -1,43 +1,90 @@
-///! This crate will be responsible for all things networking, it will take a [`crate::pci::Device`] from the [`crate::pci`] module
-///!
+//! This crate will manage the finding of network cards in a [`crate::pci::Device`] and initialising them and exposing
+//! to the rest of the OS
 
 use crate::serial_print;
-use crate::pci;
+use crate::error::{Result, Error};
 
+// Supported Nics
+// E1000 Qemu Versions
+const E1000: (u16, u16) = (0x100E, 0x8086);
+
+// Register offsets of the E1000
 const REG_CTRL: u32 = 0x0000; 
 const REG_RCTL: u32 = 0x0100;
 const REG_RDBAL: u32 = 0x2800;
 const REG_RDBAH: u32 = 0x2804;
-const REG_RDLEN0: u32 = 0x2808;
-const REG_RDH0: u32 = 0x2810;
-const REG_RDT0: u32 = 0x2818;
-//const REG_RDLEN1: u32 = 0x2908;
-//const REG_RDH1: u32 = 0x2910;
+const REG_RDLEN: u32 = 0x2808;
+const REG_RDH: u32 = 0x2810;
+const REG_RDT: u32 = 0x2818;
 const REG_RAL: u32 = 0x5400; 
 const REG_RAH: u32 = 0x5404;
 
+// Base addresses
+const RECEIVE_DESC_BASE_ADDRESS: u64 = 0x800000;
+const RECEIVE_DESC_BUF_LENGTH: u32 = 32;
+const BASE_RECV_BUFFER_ADDRESS: u64 = 0x900000;
+const PACKET_SIZE: u64 = 2048;
+
+/// This struct is the receive descriptor format that stores the packet metadata and the buffer points to the packet
+/// location in memory
+#[derive(Debug, Default, Clone, Copy)]
 #[repr(C)]
-#[derive(Default, Debug, Clone, Copy)]
-struct Rdesc{
-    buf_addr: u64,
-    vlan: u16,
-    erros: u8,
-    status: u8,
+struct Rdesc {
+    buffer:   u64,
+    len:      u16,
     checksum: u16,
-    length: u16,
+    status:   u8,
+    errors:   u8,
+    special:  u16,
 }
 
+impl Rdesc{
+    /// Sets up a buffer of [`Rdesc`]'s with [RECEIVE_DESC_BUF_LENGTH] length and writes them to [RECEIVE_DESC_BASE_ADDRESS]
+    /// We set the [`Rdesc.buffer`] field to the address where we want the raw packet to be, this packet size is determined by
+    /// [PACKET_SIZE] this allocation is YOLO as we dont check ANYTHING
+    pub fn init(){
+        let rdesc_base_ptr = RECEIVE_DESC_BASE_ADDRESS as *mut Rdesc;
+        for offset in 0..RECEIVE_DESC_BUF_LENGTH as isize{
+            let rdesc = Self {
+                buffer: BASE_RECV_BUFFER_ADDRESS + (offset as u64 * PACKET_SIZE),
+                ..Default::default()
+            };
+            unsafe{
+                core::ptr::write(rdesc_base_ptr.offset(offset), rdesc);
+           }
+        };
+    }
+}
+
+/// This struct finds the network card and stores information we need from it
 #[derive(Default, Debug)]
-struct Nic{
+struct NetworkCard {
     mmio_base: u32,
     mac: [u8; 6],
 }
 
-impl Nic{
+impl NetworkCard{
+    /// Create new instance of Network card and get MAC
+    fn new(device: crate::pci::Device) -> Self{
+        let mut nic = Self {
+            mmio_base: device.base_mem_addrs()[0],
+            ..Default::default()
+        };
+        nic.get_mac();
+        nic
+    }
+    /// Read from a register offset in the MMIO buffer
+    fn read(&self, reg_offset: u32) -> u32{
+        unsafe { core::ptr::read((self.mmio_base + reg_offset) as *const u32) }
+    }
+    /// Write to a register offset in the MMIO buffer
+    fn write(&self, reg_offset: u32, val: u32) {
+        unsafe { core::ptr::write((self.mmio_base + reg_offset) as *mut u32, val) };
+    }
     /// Parses the mac address from RAL and RAH registers
     fn get_mac(&mut self){
-        let upper32 = self.read_reg(REG_RAL);
-        let lower16 = self.read_reg(REG_RAH);
+        let upper32 = self.read(REG_RAL);
+        let lower16 = self.read(REG_RAH);
     
         self.mac = [
             upper32 as u8,
@@ -47,106 +94,80 @@ impl Nic{
             lower16 as u8,
             (lower16 >> 8) as u8,
         ]
-    
-    }
-    /// Read from a register offset in the MMIO buffer
-    fn read_reg(&self, reg_offset: u32) -> u32{
-        unsafe { core::ptr::read_volatile((self.mmio_base + reg_offset) as *const u32) }
-    }
-    /// Write to a register offset in the MMIO buffer
-    fn write_reg(&self, reg_offset: u32, val: u32) {
-        unsafe { core::ptr::write((self.mmio_base + reg_offset) as *mut u32, val) };
-    }
-    /// Send a rst to the CTRL register
-    fn reset(&self){
-        self.write_reg(REG_CTRL, self.read_reg(REG_CTRL) | (1 << 26));
-        while self.read_reg(REG_CTRL) & (1 << 26) != 0 {}
-        serial_print!("NIC Reset Complete...\n");
-    }
-    /// Set the memory address of the Recieve Buffer
-    fn init_recieve_buffer_ptr(&self, buffer: u32){
-        self.write_reg(REG_RDBAH, 0x0 as u32);
-        self.write_reg(REG_RDBAL, buffer);
-        serial_print!("Recieve Buffer Addr: {:#X}{:04X}\n", self.read_reg(REG_RDBAH), self.read_reg(REG_RDBAL));
-    }
-    /// Set the receive desciptor length queue, we set them both to 0x4
-    fn init_buffer_length(&self){
-        self.write_reg(REG_RDLEN0, 2 << 8);
-        //self.write_reg(REG_RDLEN1, 8 << 8);
-        serial_print!("RDLEN0: {:#032b}\n", self.read_reg(REG_RDLEN0));
-        //serial_print!("RDLEN1: {:#032b}\n", self.read_reg(REG_RDLEN1));
-    }
-    /// Get the descriptor head location
-    fn get_descriptor_head(&self) -> u32{
-        self.read_reg(REG_RDH0)
-    }
-    /// Get the descriptor tail pointer
-    fn get_descriptor_tail(&self) -> u32{
-        self.read_reg(REG_RDT0)
     }
 }
 
-/// [`init`] will take a ['crate::pci::Device`] and parse the important information
-pub fn init(){
 
-    let pci_nic = match pci::init().get_nic(){
+/// Main entry point to net that sets up the drivers
+/// 
+pub fn init() -> Result<()> {
+    // This will get us the first device that is an Ethernet Network Card or return an Error
+    let device = match crate::pci::init().get_nic(){
         Some(device) => {
+            // Error if we dont recongise NIC
+            let did_vid = device.did_vid();
+            if did_vid != E1000{
+                return Err(Error::UnsupportedNIC(did_vid))
+            }
             device
-        }
+        },
         None => {
-            serial_print!("Could not init networking...\n");
-            return 
+            return Err(Error::NoNICFound)
         },
     };
 
-    let mut nic = Nic {
-        mmio_base: pci_nic.base_mem_addrs()[0],
-        ..Default::default()
-    };
-    nic.reset();
-    nic.get_mac();
+    // Create a new NIC
+    let nic = NetworkCard::new(device);
 
-    // Allocate the buffer to 0x800000 and give it 32 Rdescs
-    let recv_buffer_addr: u32 = 0x800000;
-    let recv_buffer_len = 32;
-    
-    let recv_buffer_ptr = recv_buffer_addr as *mut Rdesc;
+    // !TODO give them a size we want Set the Receive Descriptor Base Address
+    nic.write(REG_RDBAH, (RECEIVE_DESC_BASE_ADDRESS >> 32) as u32 );
+    nic.write(REG_RDBAL, RECEIVE_DESC_BASE_ADDRESS as u32);
 
-    // Init rdesc with the address
-    let mut rdesc = Rdesc::default();
-    rdesc.buf_addr = recv_buffer_addr as u64;
+    // Set the Receive Descriptor Length
+    nic.write(REG_RDLEN, RECEIVE_DESC_BUF_LENGTH << 8);
 
-    //Initialise the memory with the rdesc
-    for offset in 0..recv_buffer_len{
-        unsafe{ 
-            core::ptr::write(recv_buffer_ptr.offset(offset), rdesc);
-        }
-    }
+    // Allocates all the buffers and memory
+    Rdesc::init();
 
-    serial_print!("Addr: {:#X?}\nPtr: {:#X?}\n", recv_buffer_addr, recv_buffer_ptr);
+    serial_print!("{:X?}\n", nic);
+    serial_print!("Head: {:#X?}, Tail: {:#X?}\n", nic.read(REG_RDH), nic.read(REG_RDT));
 
-    nic.init_recieve_buffer_ptr(recv_buffer_addr as u32);
-
-    // Set the length of the buffer, 128 bit aligned
-    nic.init_buffer_length();
-    
-    // REC Buffer seems to default to 2048 Bytes buffer size
-    serial_print!("RCTL {:#034b}\n", nic.read_reg(REG_RCTL));
-
-    serial_print!("Head: {}\n", nic.get_descriptor_head());
-    serial_print!("Tail: {}\n", nic.get_descriptor_tail());
-
-    // serial_print!("{:#X?}\n", nic);
-
+    let rdesc_base_ptr = RECEIVE_DESC_BASE_ADDRESS as *mut Rdesc;
     loop{
-        for offset in 0..recv_buffer_len{
+        for offset in 0..RECEIVE_DESC_BUF_LENGTH as isize{
             unsafe{ 
-                let buf = core::ptr::read(recv_buffer_ptr.offset(offset));
-                if rdesc.length != 0{
-                    serial_print!("Raw bytes: {:X?}\n", buf);
+                let rdesc = core::ptr::read(rdesc_base_ptr.offset(offset));
+                if rdesc.len != 0{
+                    serial_print!("Head: {:#X?}, Tail: {:#X?}, ", nic.read(REG_RDH), nic.read(REG_RDT));
+                    serial_print!("Location: {}, {:X?}\n", offset, rdesc);
+
+                    let packet = Packet::new(rdesc.buffer);
+                    serial_print!("{:X?}\n", packet);
+                    crate::cpu::halt();
+
                 }
             }
         } 
         //cpu::halt()
+    }
+
+    Ok(())
+}
+
+#[derive(Debug)]
+struct Packet{
+    dst_mac: [u8; 6],
+    src_mac: [u8; 6],
+    typ: u8,
+    ip_version: u8,
+    _unknown: u8,
+    total_len: u8,
+}
+
+impl Packet{
+    fn new(buffer_address: u64) -> Self{
+        unsafe {
+            core::ptr::read(buffer_address as *const Self)
+        }
     }
 }

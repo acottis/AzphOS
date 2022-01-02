@@ -9,6 +9,7 @@ mod serial;
 mod time;
 mod net;
 mod pci;
+mod error;
 
 
 #[panic_handler]
@@ -28,9 +29,9 @@ fn entry(entry_point: u16) {
 
     serial_print!("Time is: {}\n", time::DateTime::now());
 
-    net::init();
+    net::init().unwrap();
 
-    serial_print!("Done\n");
+    serial_print!("\nDone\n");
 
     cpu::halt();
 }

@@ -12,6 +12,7 @@ const PCI_SUBCLASS_CODE_ETHERNET: u8 = 0x0;
 /// This struct holds the data for a header type 0x0 PCI Device
 /// 
 #[derive(Debug, Copy, Clone)]
+#[allow(dead_code)]
 struct Header{
     device_id: u16,
     vendor_id: u16,
@@ -131,6 +132,7 @@ pub struct Device{
 }
 
 impl Device{
+    /// Creates a new Device when scanned in the PCI memory
     fn new(bus: u32, device: u32, function: u32) -> Self {
         Self {
             header: Header::new(bus, device, function),
@@ -139,7 +141,7 @@ impl Device{
             function
         }
     }
-
+    /// Returns an array of the BAR addresses to a driver
     pub fn base_mem_addrs(&self) -> [u32; 6]{
         [
             self.header.base_addr_0,
@@ -149,6 +151,10 @@ impl Device{
             self.header.base_addr_4,
             self.header.base_addr_5
         ]
+    }
+    /// Returns the [`device_id`] and [`vendor_id`] for validation that we support this device
+    pub fn did_vid(&self) -> (u16, u16){
+        (self.header.device_id, self.header.vendor_id)
     }
 }
 /// Struct that holds an Array of  [`Devices`] that we can expose to other modules

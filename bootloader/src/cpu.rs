@@ -2,6 +2,8 @@
 //! we wrap [`asm!`] in unsafe so we can reduce the amount of unsafe randomly scattered around our code
 //! Using [https://www.felixcloutier.com/x86/](https://www.felixcloutier.com/x86/) as a reference right now
 //! 
+use core::arch::asm;
+
 /// Prevent the processor from rebooting by halting
 #[inline]
 pub fn halt() -> ! {
