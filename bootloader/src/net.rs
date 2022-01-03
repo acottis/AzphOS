@@ -1,8 +1,8 @@
 //! This crate will manage the finding of network cards in a [`crate::pci::Device`] and initialising them and exposing
 //! to the rest of the OS
-
 use crate::serial_print;
 use crate::error::{Result, Error};
+use core::mem::size_of;
 
 // Supported Nics
 // E1000 Qemu Versions
@@ -24,6 +24,9 @@ const RECEIVE_DESC_BASE_ADDRESS: u64 = 0x800000;
 const RECEIVE_DESC_BUF_LENGTH: u32 = 32;
 const BASE_RECV_BUFFER_ADDRESS: u64 = 0x900000;
 const PACKET_SIZE: u64 = 2048;
+
+const RECEIVE_QUEUE_HEAD_START: u32 = 20;
+const RECEIVE_QUEUE_TAIL_START: u32 = 4;
 
 /// This struct is the receive descriptor format that stores the packet metadata and the buffer points to the packet
 /// location in memory
@@ -119,55 +122,179 @@ pub fn init() -> Result<()> {
     // Create a new NIC
     let nic = NetworkCard::new(device);
 
-    // !TODO give them a size we want Set the Receive Descriptor Base Address
+    // Set the Receive Descriptor Length
+    nic.write(REG_RDLEN, RECEIVE_DESC_BUF_LENGTH << 8);
+    
+    // Set the Receive Descriptor Head/Tail
+    nic.write(REG_RDH, RECEIVE_QUEUE_HEAD_START);
+    nic.write(REG_RDT, RECEIVE_QUEUE_TAIL_START);
+    serial_print!("Head: {:#X?}, Tail: {:#X?}\n", nic.read(REG_RDH), nic.read(REG_RDT));
+
+    // give them a size we want Set the Receive Descriptor Base Address
     nic.write(REG_RDBAH, (RECEIVE_DESC_BASE_ADDRESS >> 32) as u32 );
     nic.write(REG_RDBAL, RECEIVE_DESC_BASE_ADDRESS as u32);
 
-    // Set the Receive Descriptor Length
-    nic.write(REG_RDLEN, RECEIVE_DESC_BUF_LENGTH << 8);
 
     // Allocates all the buffers and memory
     Rdesc::init();
 
     serial_print!("{:X?}\n", nic);
-    serial_print!("Head: {:#X?}, Tail: {:#X?}\n", nic.read(REG_RDH), nic.read(REG_RDT));
 
+
+    // Main network loop, need to move out of here
     let rdesc_base_ptr = RECEIVE_DESC_BASE_ADDRESS as *mut Rdesc;
     loop{
         for offset in 0..RECEIVE_DESC_BUF_LENGTH as isize{
             unsafe{ 
-                let rdesc = core::ptr::read(rdesc_base_ptr.offset(offset));
-                if rdesc.len != 0{
-                    serial_print!("Head: {:#X?}, Tail: {:#X?}, ", nic.read(REG_RDH), nic.read(REG_RDT));
-                    serial_print!("Location: {}, {:X?}\n", offset, rdesc);
-
-                    let packet = Packet::new(rdesc.buffer);
-                    serial_print!("{:X?}\n", packet);
-                    crate::cpu::halt();
-
+                // Get the current Recieve Descriptor from our allocated memory and put it on the stack
+                let mut rdesc: Rdesc = core::ptr::read_volatile(rdesc_base_ptr.offset(offset));
+                
+                //A non zero status means a packet has arrived and is ready for processing
+                if rdesc.status != 0{
+                    let packet = Packet::new(rdesc.buffer, rdesc.len);
+                    // We only care about IPv4/ARP this will drop all the others without processing
+                    if let Some(p) = packet {
+                        // Only print ARPs
+                        if p.ethernet.ethertype == 0x0608{
+                            serial_print!("H: {}, T: {}, Pos: {}, {:X?}\n", 
+                                nic.read(REG_RDH), 
+                                nic.read(REG_RDT), 
+                                offset, 
+                                rdesc);
+                            serial_print!("{:X?}\n", p);
+                        }   
+                    }
+                    // We have processed the packet and set status to 0 to indicate the buffer can overwrite
+                    rdesc.status = 0;
+                    rdesc.len = 0;
+                    core::ptr::write_volatile(rdesc_base_ptr.offset(offset), rdesc);
+                    nic.write(REG_RDT, (nic.read(REG_RDT) + 1) % 32)       
                 }
             }
         } 
-        //cpu::halt()
     }
-
     Ok(())
 }
 
 #[derive(Debug)]
-struct Packet{
-    dst_mac: [u8; 6],
-    src_mac: [u8; 6],
-    typ: u8,
-    ip_version: u8,
-    _unknown: u8,
-    total_len: u8,
+struct Packet<'a>{
+    ethernet: Ethernet,
+    ethertype: EtherType,
+    data: &'a [u8],
 }
 
-impl Packet{
-    fn new(buffer_address: u64) -> Self{
-        unsafe {
-            core::ptr::read(buffer_address as *const Self)
+impl<'a> Packet<'a>{
+
+    fn new(buffer_address: u64, length: u16) -> Option<Self> {
+        let ethernet = Ethernet::parse(buffer_address);
+        match ethernet.ethertype {
+            // Ipv4
+            0x0008 => {
+                Some(Self{
+                    ethernet,
+                    ethertype: EtherType::IPv4(IPv4::headers(buffer_address)),
+                    data: IPv4::data::<IPv4>(buffer_address, length),
+                })
+            },
+            // Arp
+            0x0608 => {
+                Some(Self{
+                    ethernet,
+                    ethertype: EtherType::Arp(Arp::headers(buffer_address)),
+                    data: Arp::data::<Arp>(buffer_address, length),
+                })
+            },
+            // IPv6
+            0xDD86 =>{ None },
+            _ => { None },
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Debug)]
+struct Ethernet{
+    dst_mac: [u8; 6],
+    src_mac: [u8; 6],
+    ethertype: u16,
+}
+
+impl Ethernet{
+    fn parse(start_address: u64) -> Ethernet {
+        unsafe{
+            core::ptr::read(start_address as *const Self)
+        }
+    }
+}
+
+#[derive(Debug)]
+enum EtherType{
+    IPv4(IPv4),
+    Arp(Arp),
+}
+
+#[derive(Debug)]
+#[repr(C)]
+struct Arp{
+    /// Hardware type
+    htype: u16,
+    /// Protocol Address Length
+    ptype: u16,
+    /// Hardware Address Length
+    hlen: u8,
+    /// Protocol Address Length
+    plen: u8,
+    /// Operation
+    oper: u16,
+    /// Sender hardware address
+    sha: [u8; 6],
+    /// Sender protocol address
+    spa: [u8; 4],
+    /// Target hardware address
+    tha: [u8; 6],
+    /// Target protocol address
+    tpa: [u8; 4],
+}
+
+impl ParsePacket for Arp{}
+
+#[repr(C)]
+#[derive(Debug)]
+struct IPv4{
+    version_ihl: u8, 
+    dcp_ecn: u8, 
+    total_len: u16,
+    identification: u16,
+    flags_fragmentoffset: u16,
+    ttl: u8,
+    protocol: IPProtocol,
+    header_checksum: u16,
+    src_ip: [u8; 4],
+    dst_ip: [u8; 4],
+}
+
+impl ParsePacket for IPv4{}
+
+#[repr(u8)]
+#[derive(Debug)]
+enum IPProtocol{
+    UDP = 0x11,
+}
+
+trait ParsePacket {
+    fn headers<T>(start_address: u64) -> T{
+        unsafe{
+            core::ptr::read_unaligned((start_address+(size_of::<Ethernet>()) as u64) as *const T)
+        }
+    }  
+ 
+    fn data<T>(start_address: u64, length: u16) -> &'static [u8]{
+        let data_len = length as u16 - (size_of::<Ethernet>() as u16 + size_of::<T>() as u16);
+        unsafe{
+            &*core::ptr::slice_from_raw_parts(
+                (start_address + 
+                size_of::<Ethernet>() as u64 + 
+                size_of::<T>() as u64) as *const u8, data_len as usize)
         }
     }
 }
