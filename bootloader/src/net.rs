@@ -100,7 +100,6 @@ impl NetworkCard{
     }
 }
 
-
 /// Main entry point to net that sets up the drivers
 /// 
 pub fn init() -> Result<()> {
@@ -137,11 +136,9 @@ pub fn init() -> Result<()> {
 
     // Allocates all the buffers and memory
     Rdesc::init();
-
-    serial_print!("{:X?}\n", nic);
-
-
-    // Main network loop, need to move out of here
+    
+    // Main network loop, need to move out of here at some point, Loop through it in our "Main" and check in here from time to
+    // time
     let rdesc_base_ptr = RECEIVE_DESC_BASE_ADDRESS as *mut Rdesc;
     loop{
         for offset in 0..RECEIVE_DESC_BUF_LENGTH as isize{
@@ -152,7 +149,8 @@ pub fn init() -> Result<()> {
                 //A non zero status means a packet has arrived and is ready for processing
                 if rdesc.status != 0{
                     let packet = Packet::new(rdesc.buffer, rdesc.len);
-                    // We only care about IPv4/ARP this will drop all the others without processing
+                    // We only care about IPv4/ARP this will drop all the others without processing as when detected
+                    // they return [`None`]
                     if let Some(p) = packet {
                         // Only print ARPs
                         if p.ethernet.ethertype == 0x0608{
@@ -176,6 +174,8 @@ pub fn init() -> Result<()> {
     Ok(())
 }
 
+/// This is our way of turning a raw packet buffer from the NIC into a more user friendly representation
+/// 
 #[derive(Debug)]
 struct Packet<'a>{
     ethernet: Ethernet,
@@ -184,7 +184,8 @@ struct Packet<'a>{
 }
 
 impl<'a> Packet<'a>{
-
+    /// Takes a pointer to a raw packet and its length and returns a user friendly representation
+    /// Skips protocols we dont support
     fn new(buffer_address: u64, length: u16) -> Option<Self> {
         let ethernet = Ethernet::parse(buffer_address);
         match ethernet.ethertype {
@@ -211,6 +212,7 @@ impl<'a> Packet<'a>{
     }
 }
 
+/// This struct is a representation of an Ethernet frame
 #[repr(C)]
 #[derive(Debug)]
 struct Ethernet{
@@ -233,6 +235,7 @@ enum EtherType{
     Arp(Arp),
 }
 
+/// This struct is a representation of an ARP Header 
 #[derive(Debug)]
 #[repr(C)]
 struct Arp{
@@ -258,6 +261,7 @@ struct Arp{
 
 impl ParsePacket for Arp{}
 
+/// This struct is a representation of an IPv4 Header, we dont handle Options
 #[repr(C)]
 #[derive(Debug)]
 struct IPv4{
@@ -281,13 +285,15 @@ enum IPProtocol{
     UDP = 0x11,
 }
 
+/// This trait allows us to generically handle getting the headers and data for IPv4 and ARP (ARP Doesnt have data though...?)
 trait ParsePacket {
+    /// Starts reading the packet from the end point of the ethernet header for the length of the EtherType
     fn headers<T>(start_address: u64) -> T{
         unsafe{
             core::ptr::read_unaligned((start_address+(size_of::<Ethernet>()) as u64) as *const T)
         }
     }  
- 
+    /// Reads the extra bytes at the end of the packets headers
     fn data<T>(start_address: u64, length: u16) -> &'static [u8]{
         let data_len = length as u16 - (size_of::<Ethernet>() as u16 + size_of::<T>() as u16);
         unsafe{
