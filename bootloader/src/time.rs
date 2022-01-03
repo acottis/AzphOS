@@ -51,3 +51,8 @@ impl core::fmt::Display for DateTime{
     }
 }
 
+pub fn sleep(seconds: usize){
+    let start = DateTime::now().sec as usize;
+    while (DateTime::now().sec as usize) < (start + seconds) {}
+}
+

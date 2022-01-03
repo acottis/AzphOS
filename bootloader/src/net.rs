@@ -1,12 +1,13 @@
 //! This crate will manage the finding of network cards in a [`crate::pci::Device`] and initialising them and exposing
 //! to the rest of the OS
-use crate::serial_print;
+use crate::{serial_print};
 use crate::error::{Result, Error};
 use core::mem::size_of;
 
 // Supported Nics
 // E1000 Qemu Versions
 const E1000: (u16, u16) = (0x100E, 0x8086);
+const PACKET_SIZE: u64 = 2048;
 
 // Register offsets of the E1000
 const REG_CTRL: u32 = 0x0000; 
@@ -16,21 +17,32 @@ const REG_RDBAH: u32 = 0x2804;
 const REG_RDLEN: u32 = 0x2808;
 const REG_RDH: u32 = 0x2810;
 const REG_RDT: u32 = 0x2818;
+const REG_TDBAL: u32 = 0x3800;
+const REG_TDBAH: u32 = 0x3804;
+const REG_TDLEN: u32 = 0x3808;
+const REG_TDH: u32 = 0x3810;
+const REG_TDT: u32 = 0x3818;
+const REG_TCTL: u32 = 0x0400;
 const REG_RAL: u32 = 0x5400; 
 const REG_RAH: u32 = 0x5404;
 
-// Base addresses
+// Recieve Addresses Base addresses
 const RECEIVE_DESC_BASE_ADDRESS: u64 = 0x800000;
 const RECEIVE_DESC_BUF_LENGTH: u32 = 32;
-const BASE_RECV_BUFFER_ADDRESS: u64 = 0x900000;
-const PACKET_SIZE: u64 = 2048;
-
+const RECEIVE_BASE_BUFFER_ADDRESS: u64 = 0x880000;
 const RECEIVE_QUEUE_HEAD_START: u32 = 20;
 const RECEIVE_QUEUE_TAIL_START: u32 = 4;
 
+// Transmit base addresses
+const TRANSMIT_DESC_BASE_ADDRESS: u64 = 0x900000;
+const TRANSMIT_DESC_BUF_LENGTH: u32 = 32;
+const TRANSMIT_BASE_BUFFER_ADDRESS: u64 = 0x980000;
+const TRANSMIT_QUEUE_HEAD_START: u32 = 20;
+const TRANSMIT_QUEUE_TAIL_START: u32 = 4;
+
 /// This struct is the receive descriptor format that stores the packet metadata and the buffer points to the packet
 /// location in memory
-#[derive(Debug, Default, Clone, Copy)]
+#[derive(Debug, Default)]
 #[repr(C)]
 struct Rdesc {
     buffer:   u64,
@@ -42,18 +54,83 @@ struct Rdesc {
 }
 
 impl Rdesc{
+    /// First we put the recieve registers on the NIC into our desired state, such as the memory base address, tail/head, and size of buffer
     /// Sets up a buffer of [`Rdesc`]'s with [RECEIVE_DESC_BUF_LENGTH] length and writes them to [RECEIVE_DESC_BASE_ADDRESS]
     /// We set the [`Rdesc.buffer`] field to the address where we want the raw packet to be, this packet size is determined by
     /// [PACKET_SIZE] this allocation is YOLO as we dont check ANYTHING
-    pub fn init(){
+    pub fn init(nic: &NetworkCard){
+        // Set the Receive Descriptor Length
+        nic.write(REG_RDLEN, RECEIVE_DESC_BUF_LENGTH << 8);
+        
+        // Set the Receive Descriptor Head/Tail
+        nic.write(REG_RDH, RECEIVE_QUEUE_HEAD_START);
+        nic.write(REG_RDT, RECEIVE_QUEUE_TAIL_START);
+
+        // give them a size we want Set the Receive Descriptor Base Address
+        nic.write(REG_RDBAH, (RECEIVE_DESC_BASE_ADDRESS >> 32) as u32 );
+        nic.write(REG_RDBAL, RECEIVE_DESC_BASE_ADDRESS as u32);
+
+        // Enable Recv | Dont store bad packets | Enable Unicast Promiscuous | Enable Multicast Promiscuous |
+        // Enable Broadcast Accept Mode | Set the RTCL BSIZE to 2048 |
+        nic.write(REG_RCTL, (1 << 1) | (2 << 0) | (1 << 3) | ( 1 << 4) | (1 << 15) | (1 << 26));
+
+        // Zero out the chosen memory location and place the memory location for the raw packets in the
+        // Recieve buffer field in the [`Rdesc`] struct
         let rdesc_base_ptr = RECEIVE_DESC_BASE_ADDRESS as *mut Rdesc;
         for offset in 0..RECEIVE_DESC_BUF_LENGTH as isize{
             let rdesc = Self {
-                buffer: BASE_RECV_BUFFER_ADDRESS + (offset as u64 * PACKET_SIZE),
+                buffer: RECEIVE_BASE_BUFFER_ADDRESS + (offset as u64 * PACKET_SIZE),
                 ..Default::default()
             };
             unsafe{
                 core::ptr::write(rdesc_base_ptr.offset(offset), rdesc);
+           }
+        };
+    }
+}
+
+/// This struct is the transmit descriptor format that stores the packet metadata and the buffer points to the packet
+/// location in memory
+#[derive(Debug, Default, Clone, Copy)]
+#[repr(C)]
+struct Tdesc {
+    buffer:   u64,
+    len:      u16,
+    cso:      u8,
+    cmd:      u8,
+    status:   u8,
+    css:      u8,
+    special:  u16,
+}
+
+impl Tdesc{
+    pub fn init(nic: &NetworkCard){
+        // Set the Transmit Descriptor Length
+        nic.write(REG_TDLEN, TRANSMIT_DESC_BUF_LENGTH << 8);
+        
+        // Set the Transmit Descriptor Head/Tail
+        nic.write(REG_TDH, 0);
+        nic.write(REG_TDT, 0);
+
+        // give them a size we want Set the Transmit Descriptor Base Address
+        nic.write(REG_TDBAH, (TRANSMIT_DESC_BASE_ADDRESS >> 32) as u32 );
+        nic.write(REG_TDBAL, TRANSMIT_DESC_BASE_ADDRESS as u32);
+
+        // Enable Recv | Dont store bad packets | Enable Unicast Promiscuous | Enable Multicast Promiscuous |
+        // Enable Broadcast Accept Mode | Set the RTCL BSIZE to 2048 |
+        //serial_print!("TX CTRL: {:#b}\n",nic.read(0x400));
+        nic.write(REG_TCTL, 1 << 1);
+
+        // Zero out the chosen memory location and place the memory location for the raw packets in the
+        // Transmit buffer field in the [`Rdesc`] struct
+        let tdesc_base_ptr = TRANSMIT_DESC_BASE_ADDRESS as *mut Tdesc;
+        for offset in 0..TRANSMIT_DESC_BUF_LENGTH as isize{
+            let tdesc = Self {
+                buffer: TRANSMIT_BASE_BUFFER_ADDRESS + (offset as u64 * PACKET_SIZE),
+                ..Default::default()
+            };
+            unsafe{
+                core::ptr::write(tdesc_base_ptr.offset(offset), tdesc);
            }
         };
     }
@@ -121,25 +198,16 @@ pub fn init() -> Result<()> {
     // Create a new NIC
     let nic = NetworkCard::new(device);
 
-    // Set the Receive Descriptor Length
-    nic.write(REG_RDLEN, RECEIVE_DESC_BUF_LENGTH << 8);
+    // Puts the Recieve registers into our desired state and Allocates all the buffers and memory
+    Rdesc::init(&nic);
     
-    // Set the Receive Descriptor Head/Tail
-    nic.write(REG_RDH, RECEIVE_QUEUE_HEAD_START);
-    nic.write(REG_RDT, RECEIVE_QUEUE_TAIL_START);
-    serial_print!("Head: {:#X?}, Tail: {:#X?}\n", nic.read(REG_RDH), nic.read(REG_RDT));
+    // Puts the Transmit registers into our desired state
+    Tdesc::init(&nic);
 
-    // give them a size we want Set the Receive Descriptor Base Address
-    nic.write(REG_RDBAH, (RECEIVE_DESC_BASE_ADDRESS >> 32) as u32 );
-    nic.write(REG_RDBAL, RECEIVE_DESC_BASE_ADDRESS as u32);
-
-
-    // Allocates all the buffers and memory
-    Rdesc::init();
-    
     // Main network loop, need to move out of here at some point, Loop through it in our "Main" and check in here from time to
     // time
     let rdesc_base_ptr = RECEIVE_DESC_BASE_ADDRESS as *mut Rdesc;
+    let tdesc_base_ptr = TRANSMIT_DESC_BASE_ADDRESS as *mut Tdesc;
     loop{
         for offset in 0..RECEIVE_DESC_BUF_LENGTH as isize{
             unsafe{ 
@@ -148,19 +216,20 @@ pub fn init() -> Result<()> {
                 
                 //A non zero status means a packet has arrived and is ready for processing
                 if rdesc.status != 0{
-                    let packet = Packet::new(rdesc.buffer, rdesc.len);
+                    let packet = Packet::parse(rdesc.buffer, rdesc.len);
                     // We only care about IPv4/ARP this will drop all the others without processing as when detected
                     // they return [`None`]
                     if let Some(p) = packet {
+                        serial_print!("H: {}, T: {}, Pos: {}, {:X?}\n", 
+                            nic.read(REG_RDH), 
+                            nic.read(REG_RDT), 
+                            offset, 
+                            rdesc);
+                        //serial_print!("{:X?}\n", p.ethernet);
+                        
                         // Only print ARPs
-                        if p.ethernet.ethertype == 0x0608{
-                            serial_print!("H: {}, T: {}, Pos: {}, {:X?}\n", 
-                                nic.read(REG_RDH), 
-                                nic.read(REG_RDT), 
-                                offset, 
-                                rdesc);
-                            serial_print!("{:X?}\n", p);
-                        }   
+                        // if p.ethernet.ethertype == 0x0608{
+                        // }   
                     }
                     // We have processed the packet and set status to 0 to indicate the buffer can overwrite
                     rdesc.status = 0;
@@ -169,11 +238,40 @@ pub fn init() -> Result<()> {
                     nic.write(REG_RDT, (nic.read(REG_RDT) + 1) % 32)       
                 }
             }
-        } 
+        }
+        //for offset in 0..TRANSMIT_DESC_BUF_LENGTH as isize{
+        for offset in 0..1 as isize{
+        
+            let ethernet = Ethernet::new([0xFF; 6], nic.mac, 0x0608);
+            let arp = Arp::new(nic.mac);
+
+            let packet = Packet::new(ethernet, EtherType::Arp(arp), &[0u8]);
+            //serial_print!("{:#X?}\n", &packet);
+                
+            unsafe{
+                let mut tdesc: Tdesc = core::ptr::read_volatile(tdesc_base_ptr.offset(offset));
+                serial_print!("H: {}, T: {}, Pos: {}, {:X?}\n", 
+                nic.read(REG_TDH), 
+                nic.read(REG_TDT), 
+                offset, 
+                tdesc);
+                packet.send(tdesc.buffer);
+                tdesc.len = 42;
+                tdesc.cmd = (1 << 1) | 1;
+                core::ptr::write_volatile(tdesc_base_ptr.offset(offset), tdesc);
+
+                nic.write(REG_TDT, (nic.read(REG_TDT) + 1) % 32)   
+                //crate::cpu::halt();
+            }
+        }
     }
     Ok(())
 }
 
+
+
+//Below to be moved into another Module
+ 
 /// This is our way of turning a raw packet buffer from the NIC into a more user friendly representation
 /// 
 #[derive(Debug)]
@@ -184,9 +282,19 @@ struct Packet<'a>{
 }
 
 impl<'a> Packet<'a>{
+    /// Creates a packet
+    fn new(ethernet: Ethernet, ethertype: EtherType, data: &'static [u8]) -> Self {
+
+        Self{
+            ethernet,
+            ethertype,
+            data,
+        }
+
+    }
     /// Takes a pointer to a raw packet and its length and returns a user friendly representation
     /// Skips protocols we dont support
-    fn new(buffer_address: u64, length: u16) -> Option<Self> {
+    fn parse(buffer_address: u64, length: u16) -> Option<Self> {
         let ethernet = Ethernet::parse(buffer_address);
         match ethernet.ethertype {
             // Ipv4
@@ -210,6 +318,32 @@ impl<'a> Packet<'a>{
             _ => { None },
         }
     }
+    // Converts struct to raw packet
+    fn send(self, buffer: u64) {
+        let ethertype = match self.ethertype{
+            EtherType::Arp(arp) => { arp },
+            _=> {unreachable!();},
+        };
+        unsafe {
+            let ethernet = &*core::ptr::slice_from_raw_parts(
+                (&self.ethernet as *const Ethernet) as *const u8, 
+                size_of::<Ethernet>());
+
+            let arp = &*core::ptr::slice_from_raw_parts(
+                (&ethertype as *const Arp) as *const u8, 
+                size_of::<Arp>());
+
+
+                // serial_print!("{:X?}\n", ethernet);
+                // serial_print!("{:X?}\n", arp);
+                core::ptr::write(buffer as *mut [u8; size_of::<Ethernet>()], ethernet.try_into().unwrap());
+                core::ptr::write((buffer + size_of::<Ethernet>() as u64) 
+                    as *mut [u8; size_of::<Arp>()], arp.try_into().unwrap());
+                
+           serial_print!("{:x?}\n", core::ptr::read(buffer as *mut [u8;42])) ;
+        }
+    }
+
 }
 
 /// This struct is a representation of an Ethernet frame
@@ -222,7 +356,16 @@ struct Ethernet{
 }
 
 impl Ethernet{
-    fn parse(start_address: u64) -> Ethernet {
+
+    fn new(dst_mac: [u8; 6], src_mac: [u8; 6], ethertype: u16) -> Self{
+        Self{
+            dst_mac,
+            src_mac,
+            ethertype
+        }
+    }  
+
+    fn parse(start_address: u64) -> Self {
         unsafe{
             core::ptr::read(start_address as *const Self)
         }
@@ -257,6 +400,22 @@ struct Arp{
     tha: [u8; 6],
     /// Target protocol address
     tpa: [u8; 4],
+}
+
+impl Arp{
+    fn new(src_mac: [u8; 6]) -> Self{
+        Self{
+            htype: 0x0100,
+            ptype: 0x0008,
+            hlen:  0x06,
+            plen:  0x04,
+            oper:  0x0100,
+            sha:  src_mac,
+            spa:  [0u8; 4],
+            tha:  [0x00; 6],
+            tpa:  [0xA, 0x63, 0x63, 0x01],
+        }
+    }
 }
 
 impl ParsePacket for Arp{}
