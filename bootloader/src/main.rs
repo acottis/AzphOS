@@ -26,12 +26,17 @@ fn panic(info: &core::panic::PanicInfo) -> ! {
 fn entry(entry_point: u16) {
     //clear!();
     serial_print!("We entered at: {:#X}\n", entry_point);
-    
     serial_print!("Time is: {}\n", time::DateTime::now());
-    
-    net::init().unwrap();
+    let nic = net::nic::init().expect("Cant init Network");
+
+    'main: loop {
+        //serial_print!("{:#X?}\n", &packet);
+
+        nic.send(net::packet::Packet::new());
+        nic.receive();
+        crate::time::sleep(5);
+    }
 
     serial_print!("\nDone\n");
-
     cpu::halt();
 }
