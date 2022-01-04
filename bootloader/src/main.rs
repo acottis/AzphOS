@@ -26,9 +26,9 @@ fn panic(info: &core::panic::PanicInfo) -> ! {
 fn entry(entry_point: u16) {
     //clear!();
     serial_print!("We entered at: {:#X}\n", entry_point);
-
+    
     serial_print!("Time is: {}\n", time::DateTime::now());
-
+    
     net::init().unwrap();
 
     serial_print!("\nDone\n");

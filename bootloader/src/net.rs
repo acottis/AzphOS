@@ -276,7 +276,7 @@ pub fn init() -> Result<()> {
         
         
         nic.receive();
-        //crate::time::sleep(5);
+        crate::time::sleep(5);
     }
 
     Ok(())

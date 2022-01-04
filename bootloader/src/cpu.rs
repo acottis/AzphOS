@@ -46,15 +46,35 @@ pub fn in32(addr: u16) -> u32{
 }
 /// https://wiki.osdev.org/CMOS
 #[inline]
-pub fn get_rtc_register(offset :u8) -> u8{
+pub fn rtc_register(offset :u8) -> u8{
     out8(0x70, offset);
     in8(0x71)
 }
 #[inline]
-pub fn get_esp() -> u32{
+pub fn esp() -> u32{
     unsafe{
         let mut x = 0;
         asm!("mov edx, esp",  out("edx") x);
         x
     }
 }
+// /// Does not work well on 32 bit, printing hangs on 64 bits
+// #[inline]
+// pub fn rdtsc() -> u64 {
+//     let mut h: u32 = 0;
+//     let mut l: u32 = 0;
+//     unsafe {
+//         asm!(
+//             "rdtsc",
+//             out("edx") h,
+//             out("eax") l
+//         )
+//     }
+//     // Hacky work around for 32 bit
+//     (h  as u64) << 32 | l as u64
+// }
+// /// Sleep for the specified cycle count
+// pub fn sleep(cycles: u64){
+//     let start = rdtsc();
+//     while rdtsc() < (start + cycles) {}
+// }
