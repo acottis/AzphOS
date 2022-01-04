@@ -1,5 +1,5 @@
 //! This crate will manage the finding of network cards in a [`crate::pci::Device`] and initialising them and exposing
-//! to the rest of the OS
+//! to the rest of the OS our main entry points from our OS to our nic are [NetworkCard::send] and [NetworkCard::recieve]
 use crate::{serial_print};
 use crate::error::{Result, Error};
 use core::mem::size_of;
@@ -37,8 +37,8 @@ const RECEIVE_QUEUE_TAIL_START: u32 = 4;
 const TRANSMIT_DESC_BASE_ADDRESS: u64 = 0x900000;
 const TRANSMIT_DESC_BUF_LENGTH: u32 = 32;
 const TRANSMIT_BASE_BUFFER_ADDRESS: u64 = 0x980000;
-const TRANSMIT_QUEUE_HEAD_START: u32 = 20;
-const TRANSMIT_QUEUE_TAIL_START: u32 = 4;
+const TRANSMIT_QUEUE_HEAD_START: u32 = 0;
+const TRANSMIT_QUEUE_TAIL_START: u32 = 0;
 
 /// This struct is the receive descriptor format that stores the packet metadata and the buffer points to the packet
 /// location in memory
@@ -109,15 +109,14 @@ impl Tdesc{
         nic.write(REG_TDLEN, TRANSMIT_DESC_BUF_LENGTH << 8);
         
         // Set the Transmit Descriptor Head/Tail
-        nic.write(REG_TDH, 0);
-        nic.write(REG_TDT, 0);
+        nic.write(REG_TDH, TRANSMIT_QUEUE_HEAD_START);
+        nic.write(REG_TDT, TRANSMIT_QUEUE_TAIL_START);
 
         // give them a size we want Set the Transmit Descriptor Base Address
         nic.write(REG_TDBAH, (TRANSMIT_DESC_BASE_ADDRESS >> 32) as u32 );
         nic.write(REG_TDBAL, TRANSMIT_DESC_BASE_ADDRESS as u32);
 
-        // Enable Recv | Dont store bad packets | Enable Unicast Promiscuous | Enable Multicast Promiscuous |
-        // Enable Broadcast Accept Mode | Set the RTCL BSIZE to 2048 |
+        // Enable Packet transmissiong, need to look into this more
         //serial_print!("TX CTRL: {:#b}\n",nic.read(0x400));
         nic.write(REG_TCTL, 1 << 1);
 
@@ -135,7 +134,6 @@ impl Tdesc{
         };
     }
 }
-
 /// This struct finds the network card and stores information we need from it
 #[derive(Default, Debug)]
 struct NetworkCard {
@@ -175,8 +173,71 @@ impl NetworkCard{
             (lower16 >> 8) as u8,
         ]
     }
+    /// This function will be able to send packets and will be exposed
+    /// We currently only support one descriptor in the buffer
+    pub fn send(&self, packet: Packet){
+        // Get a ptr to the base address of the descriptors
+        let tdesc_base_ptr = TRANSMIT_DESC_BASE_ADDRESS as *mut Tdesc;
+        unsafe{
+            // Get the current tdesc (index 0)
+            let mut tdesc: Tdesc = core::ptr::read_volatile(tdesc_base_ptr.offset(0));
+            // If the status indicates it has been procesed, move the tail down again
+            if tdesc.status == 1 { 
+                self.write(REG_TDT, (self.read(REG_TDT) - 1) % 32);
+            }
+            serial_print!("H: {}, T: {}, Pos: {}, {:X?}\n", 
+                self.read(REG_TDH), 
+                self.read(REG_TDT), 
+                0, 
+                tdesc);
+            // This turns a packet into raw bytes and adds to the buffer (We should make this return the bytes and len)
+            packet.send(tdesc.buffer);
+            // This is hard coded len, needs to change
+            tdesc.len = 42;
+            // Sets the command for End of Packet | Insert FCS/CRC | Enable Report Status
+            tdesc.cmd = (1 << 3) | (1 << 1) | 1;
+            // Writes out modified descriptor to the memory location of the descriptor
+            core::ptr::write_volatile(tdesc_base_ptr.offset(0), tdesc);
+            // Moves the Tail up to request the NIC to process the packet
+            self.write(REG_TDT, (self.read(REG_TDT) + 1) % 32)   
+        }   
+    }
+    /// This function processes the emails in buffer of buffer size [RECEIVE_DESC_BUF_LENGTH]
+    pub fn receive(&self){
+        let rdesc_base_ptr = RECEIVE_DESC_BASE_ADDRESS as *mut Rdesc;
+        for offset in 0..RECEIVE_DESC_BUF_LENGTH as isize{
+            unsafe{ 
+                // Get the current Recieve Descriptor from our allocated memory and put it on the stack
+                let mut rdesc: Rdesc = core::ptr::read_volatile(rdesc_base_ptr.offset(offset));
+                
+                //A non zero status means a packet has arrived and is ready for processing
+                if rdesc.status != 0{
+                    let packet = Packet::parse(rdesc.buffer, rdesc.len);
+                    // We only care about IPv4/ARP this will drop all the others without processing as when detected
+                    // they return [`None`]
+                    if let Some(p) = packet {
+                        // serial_print!("H: {}, T: {}, Pos: {}, {:X?}\n", 
+                        //     nic.read(REG_RDH), 
+                        //     nic.read(REG_RDT), 
+                        //     offset, 
+                        //     rdesc);      
+                        serial_print!("{:X?}\n", p.ethernet);
+                        // Only process ARPs
+                        if p.ethernet.ethertype == 0x0608{
+                        }   
+                    }
+                    // We have processed the packet and set status to 0 to indicate the buffer can overwrite
+                    rdesc.status = 0;
+                    rdesc.len = 0;
+                    // Write modified rdesc pack to memory
+                    core::ptr::write_volatile(rdesc_base_ptr.offset(offset), rdesc);
+                    // Adds one to the tail to let the NIC know we are done with that one
+                    self.write(REG_RDT, (self.read(REG_RDT) + 1) % 32)       
+                }
+            }
+        } 
+    }
 }
-
 /// Main entry point to net that sets up the drivers
 /// 
 pub fn init() -> Result<()> {
@@ -204,71 +265,22 @@ pub fn init() -> Result<()> {
     // Puts the Transmit registers into our desired state
     Tdesc::init(&nic);
 
-    // Main network loop, need to move out of here at some point, Loop through it in our "Main" and check in here from time to
-    // time
-    let rdesc_base_ptr = RECEIVE_DESC_BASE_ADDRESS as *mut Rdesc;
-    let tdesc_base_ptr = TRANSMIT_DESC_BASE_ADDRESS as *mut Tdesc;
-    loop{
-        for offset in 0..RECEIVE_DESC_BUF_LENGTH as isize{
-            unsafe{ 
-                // Get the current Recieve Descriptor from our allocated memory and put it on the stack
-                let mut rdesc: Rdesc = core::ptr::read_volatile(rdesc_base_ptr.offset(offset));
-                
-                //A non zero status means a packet has arrived and is ready for processing
-                if rdesc.status != 0{
-                    let packet = Packet::parse(rdesc.buffer, rdesc.len);
-                    // We only care about IPv4/ARP this will drop all the others without processing as when detected
-                    // they return [`None`]
-                    if let Some(p) = packet {
-                        serial_print!("H: {}, T: {}, Pos: {}, {:X?}\n", 
-                            nic.read(REG_RDH), 
-                            nic.read(REG_RDT), 
-                            offset, 
-                            rdesc);
-                        //serial_print!("{:X?}\n", p.ethernet);
-                        
-                        // Only print ARPs
-                        // if p.ethernet.ethertype == 0x0608{
-                        // }   
-                    }
-                    // We have processed the packet and set status to 0 to indicate the buffer can overwrite
-                    rdesc.status = 0;
-                    rdesc.len = 0;
-                    core::ptr::write_volatile(rdesc_base_ptr.offset(offset), rdesc);
-                    nic.write(REG_RDT, (nic.read(REG_RDT) + 1) % 32)       
-                }
-            }
-        }
-        //for offset in 0..TRANSMIT_DESC_BUF_LENGTH as isize{
-        for offset in 0..1 as isize{
+    // These two functions are doing the Recieve loop and the send packet, they will be able to be exposed to the main OS loop so we can check
+    // for packets
+    loop {
+        let ethernet = Ethernet::new([0xFF; 6], nic.mac, 0x0608);
+        let arp = Arp::new(nic.mac);
+        let packet = Packet::new(ethernet, EtherType::Arp(arp), &[0u8]);
+        //serial_print!("{:#X?}\n", &packet);
+        nic.send(packet);
         
-            let ethernet = Ethernet::new([0xFF; 6], nic.mac, 0x0608);
-            let arp = Arp::new(nic.mac);
-
-            let packet = Packet::new(ethernet, EtherType::Arp(arp), &[0u8]);
-            //serial_print!("{:#X?}\n", &packet);
-                
-            unsafe{
-                let mut tdesc: Tdesc = core::ptr::read_volatile(tdesc_base_ptr.offset(offset));
-                serial_print!("H: {}, T: {}, Pos: {}, {:X?}\n", 
-                nic.read(REG_TDH), 
-                nic.read(REG_TDT), 
-                offset, 
-                tdesc);
-                packet.send(tdesc.buffer);
-                tdesc.len = 42;
-                tdesc.cmd = (1 << 1) | 1;
-                core::ptr::write_volatile(tdesc_base_ptr.offset(offset), tdesc);
-
-                nic.write(REG_TDT, (nic.read(REG_TDT) + 1) % 32)   
-                //crate::cpu::halt();
-            }
-        }
+        
+        nic.receive();
+        //crate::time::sleep(5);
     }
+
     Ok(())
 }
-
-
 
 //Below to be moved into another Module
  
@@ -340,11 +352,11 @@ impl<'a> Packet<'a>{
                 core::ptr::write((buffer + size_of::<Ethernet>() as u64) 
                     as *mut [u8; size_of::<Arp>()], arp.try_into().unwrap());
                 
-           serial_print!("{:x?}\n", core::ptr::read(buffer as *mut [u8;42])) ;
+           //serial_print!("{:x?}\n", core::ptr::read(buffer as *mut [u8;42])) ;
         }
     }
-
 }
+
 
 /// This struct is a representation of an Ethernet frame
 #[repr(C)]

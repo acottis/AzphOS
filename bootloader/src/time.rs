@@ -1,6 +1,6 @@
 //! This crate gets the time from the CMOS on the motherboard, currently can just just capture current time with
 //! pretty print
-use crate::cpu;
+use crate::{cpu, serial_print};
 
 /// Stores the current time in its raw parts
 /// 
@@ -53,6 +53,8 @@ impl core::fmt::Display for DateTime{
 
 pub fn sleep(seconds: usize){
     let start = DateTime::now().sec as usize;
+    serial_print!("Starting to sleep... for {} seconds, Currently: {:X}",seconds, start);
     while (DateTime::now().sec as usize) < (start + seconds) {}
+    serial_print!("Awake now at: {:X}\n", DateTime::now().sec);
 }
 
