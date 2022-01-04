@@ -4,27 +4,25 @@
 use core::mem::size_of;
 /// This is our way of turning a raw packet buffer from the NIC into a more user friendly representation
 /// 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct Packet<'a>{
     ethernet: Ethernet,
-    ethertype: EtherType,
-    data: &'a [u8],
+    pub ethertype: EtherType,
+    protocol: Option<Protocol<'a>>,
 }
 
-impl<'a> Packet<'a>{
+impl Packet<'_>{
     /// Creates a packet
     //pub fn new(ethernet: Ethernet, ethertype: EtherType, data: &'static [u8]) -> Self {
-    pub fn new() -> Self {
+    pub fn new(ethertype: EtherType) -> Self {
     
         let ethernet = Ethernet::new([0xFF; 6], [0x11; 6], 0x0608);
-        let arp = Arp::new([0x11; 6]);
-        let ethertype= EtherType::Arp(arp);
-        let data = &[0u8];
+        let payload = &[0u8];
 
         Self{
             ethernet,
             ethertype,
-            data,
+            protocol: None,
         }
 
     }
@@ -38,7 +36,7 @@ impl<'a> Packet<'a>{
                 Some(Self{
                     ethernet,
                     ethertype: EtherType::IPv4(IPv4::headers(buffer_address)),
-                    data: IPv4::data::<IPv4>(buffer_address, length),
+                    protocol: None,
                 })
             },
             // Arp
@@ -46,7 +44,7 @@ impl<'a> Packet<'a>{
                 Some(Self{
                     ethernet,
                     ethertype: EtherType::Arp(Arp::headers(buffer_address)),
-                    data: Arp::data::<Arp>(buffer_address, length),
+                    protocol: None,
                 })
             },
             // IPv6
@@ -84,7 +82,7 @@ impl<'a> Packet<'a>{
 
 /// This struct is a representation of an Ethernet frame
 #[repr(C)]
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 struct Ethernet{
     dst_mac: [u8; 6],
     src_mac: [u8; 6],
@@ -108,16 +106,16 @@ impl Ethernet{
     }
 }
 
-#[derive(Debug)]
-enum EtherType{
+#[derive(Debug, Clone, Copy)]
+pub enum EtherType{
     IPv4(IPv4),
     Arp(Arp),
 }
 
 /// This struct is a representation of an ARP Header 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 #[repr(C)]
-struct Arp{
+pub struct Arp{
     /// Hardware type
     htype: u16,
     /// Protocol Address Length
@@ -139,14 +137,14 @@ struct Arp{
 }
 
 impl Arp{
-    fn new(src_mac: [u8; 6]) -> Self{
+    pub fn new() -> Self{
         Self{
             htype: 0x0100,
             ptype: 0x0008,
             hlen:  0x06,
             plen:  0x04,
             oper:  0x0100,
-            sha:  src_mac,
+            sha:  crate::net::MAC,
             spa:  [0u8; 4],
             tha:  [0x00; 6],
             tpa:  [0xA, 0x63, 0x63, 0x01],
@@ -158,8 +156,8 @@ impl ParsePacket for Arp{}
 
 /// This struct is a representation of an IPv4 Header, we dont handle Options
 #[repr(C)]
-#[derive(Debug)]
-struct IPv4{
+#[derive(Debug, Clone, Copy)]
+pub struct IPv4{
     version_ihl: u8, 
     dcp_ecn: u8, 
     total_len: u16,
@@ -172,11 +170,30 @@ struct IPv4{
     dst_ip: [u8; 4],
 }
 
+impl IPv4{
+    pub fn new(protocol: IPProtocol) -> Self{
+        Self {
+            version_ihl: 0x45, 
+            dcp_ecn: 0x00, 
+            // PROBLEM
+            total_len: 0x0000,
+            identification: 0x0001,
+            flags_fragmentoffset: 0x00,
+            ttl: 0x40,
+            protocol,
+            // PROBLEM
+            header_checksum: 0x00,
+            src_ip: [0x0; 4],
+            dst_ip: [0xFF; 4],
+        }
+    }
+}
+
 impl ParsePacket for IPv4{}
 
 #[repr(u8)]
-#[derive(Debug)]
-enum IPProtocol{
+#[derive(Debug, Clone, Copy)]
+pub enum IPProtocol{
     UDP = 0x11,
 }
 
@@ -197,5 +214,33 @@ trait ParsePacket {
                 size_of::<Ethernet>() as u64 + 
                 size_of::<T>() as u64) as *const u8, data_len as usize)
         }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+enum Protocol<'a>{
+    UDP(Udp<'a>)
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct Udp<'a>{
+    src_port: u16,
+    dst_port: u16,
+    len: u16,
+    checksum: u16,
+    payload: &'a [u8]
+}
+
+impl<'a> Udp<'a>{
+    pub fn new(payload: &'a [u8]) -> Self{
+        Self {
+            src_port: 68,
+            dst_port: 67,
+            len: payload.len() as u16,
+            // PROBLEM
+            checksum: 0,
+            payload: payload,
+        }
+
     }
 }

@@ -11,6 +11,7 @@ mod net;
 mod pci;
 mod error;
 
+use net::packet::{EtherType, Arp, Packet};
 
 #[panic_handler]
 fn panic(info: &core::panic::PanicInfo) -> ! {
@@ -29,11 +30,11 @@ fn entry(entry_point: u16) {
     serial_print!("Time is: {}\n", time::DateTime::now());
     let nic = net::nic::init().expect("Cant init Network");
 
-    'main: loop {
+    loop {
         //serial_print!("{:#X?}\n", &packet);
 
-        nic.send(net::packet::Packet::new());
-        nic.receive();
+        nic.send(Packet::new(EtherType::Arp(Arp::new())));
+        let packets = nic.receive();
         crate::time::sleep(5);
     }
 

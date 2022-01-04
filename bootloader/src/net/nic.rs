@@ -2,7 +2,7 @@
 //! to the rest of the OS our main entry points from our OS to our nic are [NetworkCard::send] and [NetworkCard::recieve]
 use crate::{serial_print};
 use crate::error::{Result, Error};
-use crate::net::packet::Packet;
+use crate::net::packet::{EtherType, Packet};
 
 // Supported Nics
 // E1000 Qemu Versions
@@ -175,7 +175,7 @@ impl NetworkCard{
     }
     /// This function will be able to send packets and will be exposed
     /// We currently only support one descriptor in the buffer
-    pub fn send(&self, packet: Packet){
+    pub fn send(&self, packet: Packet) {
         // Get a ptr to the base address of the descriptors
         let tdesc_base_ptr = TRANSMIT_DESC_BASE_ADDRESS as *mut Tdesc;
         unsafe{
@@ -185,7 +185,7 @@ impl NetworkCard{
             if tdesc.status == 1 { 
                 self.write(REG_TDT, (self.read(REG_TDT) - 1) % 32);
             }
-            serial_print!("H: {}, T: {}, Pos: {}, {:X?}\n", 
+            serial_print!("Sent Packet! H: {}, T: {}, Pos: {}, {:X?}\n", 
                 self.read(REG_TDH), 
                 self.read(REG_TDT), 
                 0, 
@@ -199,11 +199,13 @@ impl NetworkCard{
             // Writes out modified descriptor to the memory location of the descriptor
             core::ptr::write_volatile(tdesc_base_ptr.offset(0), tdesc);
             // Moves the Tail up to request the NIC to process the packet
-            self.write(REG_TDT, (self.read(REG_TDT) + 1) % 32)   
-        }   
+            self.write(REG_TDT, (self.read(REG_TDT) + 1) % 32);
+        }
     }
     /// This function processes the emails in buffer of buffer size [RECEIVE_DESC_BUF_LENGTH]
-    pub fn receive(&self){
+    pub fn receive(&self) -> [Option<Packet>; 32] {
+        let mut recieved_packets: [Option<Packet>; 32] = [Default::default(); 32];
+        let mut packet_counter = 0;
         let rdesc_base_ptr = RECEIVE_DESC_BASE_ADDRESS as *mut Rdesc;
         for offset in 0..RECEIVE_DESC_BUF_LENGTH as isize{
             unsafe{ 
@@ -220,11 +222,18 @@ impl NetworkCard{
                         //     nic.read(REG_RDH), 
                         //     nic.read(REG_RDT), 
                         //     offset, 
-                        //     rdesc);      
-                        serial_print!("{:X?}\n", p);
+                        //     rdesc);
+                        //serial_print!("{:X?}\n", p);
                         // Only process ARPs
-                        // if p.ethernet.ethertype == 0x0608{
-                        // }   
+                        match p.ethertype {
+                            crate::net::packet::EtherType::Arp(arp)=> {
+                                serial_print!("Found arp!\n");
+                            }
+                            _=> {
+                                recieved_packets[packet_counter] = Some(p);
+                                packet_counter += 1;
+                            }
+                        }
                     }
                     // We have processed the packet and set status to 0 to indicate the buffer can overwrite
                     rdesc.status = 0;
@@ -236,7 +245,10 @@ impl NetworkCard{
                 }
             }
         } 
+        recieved_packets 
     }
+    // Inbuilt functionality to generate arp broadcast
+    //pub fn arp()
 }
 /// Main entry point to net that sets up the drivers
 /// 
@@ -265,17 +277,7 @@ pub fn init() -> Result<NetworkCard> {
     // Puts the Transmit registers into our desired state
     Tdesc::init(&nic);
 
-    // These two functions are doing the Recieve loop and the send packet, they will be able to be exposed to the main OS loop so we can check
-    // for packets
-    // loop {
-    //     //serial_print!("{:#X?}\n", &packet);
-
-    //     nic.send(Packet::new());
-        
-        
-    //     nic.receive();
-    //     crate::time::sleep(5);
-    // }
+    crate::net::dhcp::init(&nic);
 
     Ok(nic)
 }
