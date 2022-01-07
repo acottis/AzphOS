@@ -2,27 +2,36 @@
 //! 
 
 use core::mem::size_of;
+use core::ptr::{read, write, slice_from_raw_parts, read_unaligned, write_unaligned};
+use crate::serial_print;
+
+use super::MAC;
+
+use super::Serialise;
+
+const IPV4_HEADER_LEN: u16 = 20;
+const UPD_HEADER_LEN: u16 = 8;
 /// This is our way of turning a raw packet buffer from the NIC into a more user friendly representation
 /// 
 #[derive(Debug, Clone, Copy)]
 pub struct Packet<'a>{
     ethernet: Ethernet,
-    pub ethertype: EtherType,
-    protocol: Option<Protocol<'a>>,
+    pub ethertype: EtherType<'a>,
 }
 
-impl Packet<'_>{
+impl<'a> Packet<'a>{
     /// Creates a packet
     //pub fn new(ethernet: Ethernet, ethertype: EtherType, data: &'static [u8]) -> Self {
-    pub fn new(ethertype: EtherType) -> Self {
+    pub fn new(ethertype:  EtherType<'a>) -> Self {
     
-        let ethernet = Ethernet::new([0xFF; 6], [0x11; 6], 0x0608);
-        let payload = &[0u8];
+        let ethernet = match ethertype {
+            EtherType::Arp(arp) => Ethernet::new([0xFF; 6], MAC, 0x0608),
+            EtherType::IPv4(ipv4) => Ethernet::new([0xFF; 6], MAC, 0x0008),        
+        };
 
         Self{
             ethernet,
             ethertype,
-            protocol: None,
         }
 
     }
@@ -36,7 +45,6 @@ impl Packet<'_>{
                 Some(Self{
                     ethernet,
                     ethertype: EtherType::IPv4(IPv4::headers(buffer_address)),
-                    protocol: None,
                 })
             },
             // Arp
@@ -44,7 +52,6 @@ impl Packet<'_>{
                 Some(Self{
                     ethernet,
                     ethertype: EtherType::Arp(Arp::headers(buffer_address)),
-                    protocol: None,
                 })
             },
             // IPv6
@@ -52,29 +59,58 @@ impl Packet<'_>{
             _ => { None },
         }
     }
-    // Converts struct to raw packet
-    pub fn send(self, buffer: u64) {
-        let ethertype = match self.ethertype{
-            EtherType::Arp(arp) => { arp },
-            _=> {unreachable!();},
-        };
-        unsafe {
-            let ethernet = &*core::ptr::slice_from_raw_parts(
-                (&self.ethernet as *const Ethernet) as *const u8, 
-                size_of::<Ethernet>());
+    // Converts struct to raw packet and returns the length to the NIC
+    pub fn send(self, buffer: u64) -> u16 {
+        unsafe {        
+            let mut writer_ptr = buffer;
+            // Write the ethernet header
+            write_unaligned(writer_ptr as *mut [u8; size_of::<Ethernet>()], self.ethernet.serialise().try_into().unwrap());
+            writer_ptr += size_of::<Ethernet>() as u64;
 
-            let arp = &*core::ptr::slice_from_raw_parts(
-                (&ethertype as *const Arp) as *const u8, 
-                size_of::<Arp>());
+            match self.ethertype{
+                EtherType::Arp(arp) => { 
+                        let arp = &*slice_from_raw_parts(
+                            (&arp as *const Arp) as *const u8, 
+                            size_of::<Arp>());
 
+                            write((buffer + size_of::<Ethernet>() as u64) 
+                                as *mut [u8; size_of::<Arp>()], arp.try_into().unwrap());          
+                },
+                EtherType::IPv4(ipv4) => {                                      
+                    // Write the IPv4 Header
+                    write_unaligned(
+                        writer_ptr as *mut [u8; IPV4_HEADER_LEN as usize], 
+                        ipv4.serialise().try_into().unwrap()
+                    ); 
+                    writer_ptr += IPV4_HEADER_LEN as u64;
 
-                // serial_print!("{:X?}\n", ethernet);
-                // serial_print!("{:X?}\n", arp);
-                core::ptr::write(buffer as *mut [u8; size_of::<Ethernet>()], ethernet.try_into().unwrap());
-                core::ptr::write((buffer + size_of::<Ethernet>() as u64) 
-                    as *mut [u8; size_of::<Arp>()], arp.try_into().unwrap());
-                
-           //serial_print!("{:x?}\n", core::ptr::read(buffer as *mut [u8;42])) ;
+                    match ipv4.protocol_data{
+                        Protocol::UDP(udp) => {
+                            // Write the UDP Header
+                            write_unaligned(
+                                writer_ptr as *mut [u8; UPD_HEADER_LEN as usize], 
+                                udp.serialise().try_into().unwrap()
+                            );
+                            writer_ptr += UPD_HEADER_LEN as u64;
+
+                            serial_print!("len: {:X}, {:X?}\n", udp.payload.len(), udp.payload);
+
+                            // Write the UDP Data
+                            write_unaligned(
+                                writer_ptr as *mut [u8; core::mem::size_of::<super::dhcp::DHCP>()],
+                                udp.payload.try_into().unwrap()
+                            );
+                            writer_ptr += udp.payload.len() as u64;
+                        }
+                    }
+                }
+                _=> {
+                    unreachable!()
+                },
+            }
+            // Send the packet length to the NIC
+            serial_print!("Packet len: {:#X}\n", (writer_ptr - buffer) as u16);
+            (writer_ptr - buffer) as u16
         }
     }
 }
@@ -101,14 +137,14 @@ impl Ethernet{
 
     fn parse(start_address: u64) -> Self {
         unsafe{
-            core::ptr::read(start_address as *const Self)
+            read(start_address as *const Self)
         }
     }
 }
 
 #[derive(Debug, Clone, Copy)]
-pub enum EtherType{
-    IPv4(IPv4),
+pub enum EtherType<'a>{
+    IPv4(IPv4<'a>),
     Arp(Arp),
 }
 
@@ -157,59 +193,68 @@ impl ParsePacket for Arp{}
 /// This struct is a representation of an IPv4 Header, we dont handle Options
 #[repr(C)]
 #[derive(Debug, Clone, Copy)]
-pub struct IPv4{
+pub struct IPv4<'a>{
     version_ihl: u8, 
     dcp_ecn: u8, 
     total_len: u16,
     identification: u16,
     flags_fragmentoffset: u16,
     ttl: u8,
-    protocol: IPProtocol,
+    protocol_type: u8,
     header_checksum: u16,
     src_ip: [u8; 4],
     dst_ip: [u8; 4],
+    protocol_data: Protocol<'a>,
 }
 
-impl IPv4{
-    pub fn new(protocol: IPProtocol) -> Self{
+impl<'a> IPv4<'a>{
+    pub fn new(protocol: Protocol<'a>) -> Self{
+
+        let len = match protocol {
+            Protocol::UDP(udp) => {
+                udp.len.to_be()
+            },
+        };
+
         Self {
             version_ihl: 0x45, 
             dcp_ecn: 0x00, 
             // PROBLEM
-            total_len: 0x0000,
+            total_len: (IPV4_HEADER_LEN + len).to_be(),
             identification: 0x0001,
             flags_fragmentoffset: 0x00,
             ttl: 0x40,
-            protocol,
+            protocol_type: 0x11,
             // PROBLEM
             header_checksum: 0x00,
             src_ip: [0x0; 4],
             dst_ip: [0xFF; 4],
+            protocol_data: protocol,
         }
     }
 }
 
-impl ParsePacket for IPv4{}
+impl<'a> ParsePacket for IPv4<'a>{}
 
-#[repr(u8)]
-#[derive(Debug, Clone, Copy)]
-pub enum IPProtocol{
-    UDP = 0x11,
-}
+// #[repr(u8)]
+// #[derive(Debug, Clone, Copy)]
+// pub enum IPProtocol{
+//     UDP = 0x11,
+// }
 
 /// This trait allows us to generically handle getting the headers and data for IPv4 and ARP (ARP Doesnt have data though...?)
 trait ParsePacket {
     /// Starts reading the packet from the end point of the ethernet header for the length of the EtherType
     fn headers<T>(start_address: u64) -> T{
         unsafe{
-            core::ptr::read_unaligned((start_address+(size_of::<Ethernet>()) as u64) as *const T)
+            read_unaligned((start_address+(size_of::<Ethernet>()) as u64) as *const T)
         }
     }  
     /// Reads the extra bytes at the end of the packets headers
     fn data<T>(start_address: u64, length: u16) -> &'static [u8]{
         let data_len = length as u16 - (size_of::<Ethernet>() as u16 + size_of::<T>() as u16);
         unsafe{
-            &*core::ptr::slice_from_raw_parts(
+            &*slice_from_raw_parts(
                 (start_address + 
                 size_of::<Ethernet>() as u64 + 
                 size_of::<T>() as u64) as *const u8, data_len as usize)
@@ -218,11 +263,12 @@ trait ParsePacket {
 }
 
 #[derive(Debug, Clone, Copy)]
-enum Protocol<'a>{
+pub enum Protocol<'a>{
     UDP(Udp<'a>)
 }
 
 #[derive(Debug, Clone, Copy)]
+#[repr(C)]
 pub struct Udp<'a>{
     src_port: u16,
     dst_port: u16,
@@ -232,15 +278,34 @@ pub struct Udp<'a>{
 }
 
 impl<'a> Udp<'a>{
-    pub fn new(payload: &'a [u8]) -> Self{
+    pub fn new(payload: &'a[u8]) -> Self{
         Self {
-            src_port: 68,
-            dst_port: 67,
-            len: payload.len() as u16,
-            // PROBLEM
+            src_port: (68 as u16).to_be(),
+            dst_port: (67 as u16).to_be(),
+            len: (payload.len() as u16).to_be(),
+            // Unimplemented
             checksum: 0,
-            payload: payload,
+            payload,
         }
-
     }
 }
+
+impl<'a> Serialise for Udp<'a>{
+    fn serialise(&self) -> &[u8]
+    where Self: Sized {
+        unsafe {
+            &*core::ptr::slice_from_raw_parts((&*self as *const Self) as *const u8, UPD_HEADER_LEN as usize)
+        }
+    }
+}
+
+impl<'a> Serialise for IPv4<'a>{
+    fn serialise(&self) -> &[u8]
+    where Self: Sized {
+        unsafe {
+            &*core::ptr::slice_from_raw_parts((&*self as *const Self) as *const u8, IPV4_HEADER_LEN as usize)
+        }
+    }
+}
+
+impl Serialise for Ethernet{}

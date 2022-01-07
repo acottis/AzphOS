@@ -2,7 +2,7 @@
 //! to the rest of the OS our main entry points from our OS to our nic are [NetworkCard::send] and [NetworkCard::recieve]
 use crate::{serial_print};
 use crate::error::{Result, Error};
-use crate::net::packet::{EtherType, Packet};
+use super::packet::{EtherType, Packet};
 
 // Supported Nics
 // E1000 Qemu Versions
@@ -191,9 +191,9 @@ impl NetworkCard{
                 0, 
                 tdesc);
             // This turns a packet into raw bytes and adds to the buffer (We should make this return the bytes and len)
-            packet.send(tdesc.buffer);
+            let len = packet.send(tdesc.buffer);
             // This is hard coded len, needs to change
-            tdesc.len = 42;
+            tdesc.len = len;
             // Sets the command for End of Packet | Insert FCS/CRC | Enable Report Status
             tdesc.cmd = (1 << 3) | (1 << 1) | 1;
             // Writes out modified descriptor to the memory location of the descriptor
@@ -277,7 +277,7 @@ pub fn init() -> Result<NetworkCard> {
     // Puts the Transmit registers into our desired state
     Tdesc::init(&nic);
 
-    crate::net::dhcp::init(&nic);
+    super::dhcp::init(&nic);
 
     Ok(nic)
 }
