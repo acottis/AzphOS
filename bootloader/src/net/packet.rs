@@ -4,7 +4,6 @@
 use core::mem::size_of;
 use core::ptr::{read, write, slice_from_raw_parts, read_unaligned};
 use crate::net::dhcp::DHCP_TOTAL_LEN;
-use crate::serial_print;
 
 use super::MAC;
 
@@ -64,11 +63,11 @@ impl<'a> Packet<'a>{
     pub fn send(self, buffer: u64) -> u16 {
         unsafe {        
             let mut writer_ptr = buffer;
-            serial_print!("Writer_ptr {}\n", (writer_ptr - buffer) as u16);
+
             // Write the ethernet header
             write(writer_ptr as *mut [u8; size_of::<Ethernet>()], self.ethernet.serialise().try_into().unwrap());
             writer_ptr += size_of::<Ethernet>() as u64;
-            serial_print!("Writer_ptr {}\n", (writer_ptr - buffer) as u16);
+
             match self.ethertype{
                 EtherType::Arp(arp) => { 
                         // let arp = &*slice_from_raw_parts(
@@ -87,7 +86,6 @@ impl<'a> Packet<'a>{
                         ipv4.serialise().try_into().unwrap()
                     ); 
                     writer_ptr += IPV4_HEADER_LEN as u64;
-                    serial_print!("Writer_ptr {}\n", (writer_ptr - buffer) as u16);
 
                     match ipv4.protocol_data{
                         Protocol::UDP(udp) => {
@@ -97,7 +95,6 @@ impl<'a> Packet<'a>{
                                 udp.serialise().try_into().unwrap()
                             );
                             writer_ptr += UPD_HEADER_LEN as u64;
-                            serial_print!("Writer_ptr {}\n", (writer_ptr - buffer) as u16);
 
                             // Write the UDP Data
                             write(
@@ -105,8 +102,6 @@ impl<'a> Packet<'a>{
                                 udp.payload.try_into().unwrap()
                             );
                             writer_ptr += DHCP_TOTAL_LEN as u64;
-                            serial_print!("{:X?}\n{:X?}\n{:X?}\n{:X?}\n", self.ethernet.serialise(), ipv4.serialise(), udp.serialise(), udp.payload);
-                            serial_print!("Writer_ptr {}\n", (writer_ptr - buffer) as u16);
                         }
                     }
                 }
@@ -115,8 +110,6 @@ impl<'a> Packet<'a>{
                 },
             }
             // Send the packet length to the NIC
-            serial_print!("Packet len: {:#X}\n", (writer_ptr - buffer) as u16);
-            serial_print!("DHCP len: {:#X}\n", size_of::<super::dhcp::DHCP>());
             (writer_ptr - buffer) as u16
         }
     }
@@ -216,14 +209,12 @@ pub struct IPv4<'a>{
 
 impl<'a> IPv4<'a>{
     pub fn new(protocol: Protocol<'a>) -> Self{
-
         let len = match protocol {
             Protocol::UDP(udp) => {
                 udp.len.to_be()
             },
         };
-
-        Self {
+        let mut ipv4 = Self {
             version_ihl: 0x45, 
             dcp_ecn: 0x00, 
             // PROBLEM
@@ -233,11 +224,27 @@ impl<'a> IPv4<'a>{
             ttl: 0x40,
             protocol_type: 0x11,
             // PROBLEM
-            header_checksum: (0x7845u16).to_be(),
+            header_checksum: 0,
             src_ip: [0x0; 4],
             dst_ip: [0xFF; 4],
             protocol_data: protocol,
+        };
+        ipv4.checksum();
+        ipv4
+    }
+    /// This calculates the IPv4 checksum on creation of the header
+    fn checksum(&mut self){
+        let raw = self.serialise();
+        let mut total: u32 = 0;
+        for index in (0..raw.len()).step_by(2){
+            let tmp: u32 = ((raw[index] as u32) << 8) | (raw[index+1]) as u32;
+            total += tmp;
         }
+        total = (total + (total >> 16)) & 0x0000FFFF;
+        // This catches the wierd edge case where our carry creates another carry
+        total = total + (total >> 16);
+
+        self.header_checksum = (!total as u16).to_be();
     }
 }
 
