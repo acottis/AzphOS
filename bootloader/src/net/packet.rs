@@ -2,7 +2,8 @@
 //! 
 
 use core::mem::size_of;
-use core::ptr::{read, write, slice_from_raw_parts, read_unaligned, write_unaligned};
+use core::ptr::{read, write, slice_from_raw_parts, read_unaligned};
+use crate::net::dhcp::DHCP_TOTAL_LEN;
 use crate::serial_print;
 
 use super::MAC;
@@ -63,44 +64,49 @@ impl<'a> Packet<'a>{
     pub fn send(self, buffer: u64) -> u16 {
         unsafe {        
             let mut writer_ptr = buffer;
+            serial_print!("Writer_ptr {}\n", (writer_ptr - buffer) as u16);
             // Write the ethernet header
-            write_unaligned(writer_ptr as *mut [u8; size_of::<Ethernet>()], self.ethernet.serialise().try_into().unwrap());
+            write(writer_ptr as *mut [u8; size_of::<Ethernet>()], self.ethernet.serialise().try_into().unwrap());
             writer_ptr += size_of::<Ethernet>() as u64;
-
+            serial_print!("Writer_ptr {}\n", (writer_ptr - buffer) as u16);
             match self.ethertype{
                 EtherType::Arp(arp) => { 
-                        let arp = &*slice_from_raw_parts(
-                            (&arp as *const Arp) as *const u8, 
-                            size_of::<Arp>());
-
-                            write((buffer + size_of::<Ethernet>() as u64) 
-                                as *mut [u8; size_of::<Arp>()], arp.try_into().unwrap());          
+                        // let arp = &*slice_from_raw_parts(
+                        //     (&arp as *const Arp) as *const u8, 
+                        //     size_of::<Arp>());
+                        write(
+                            writer_ptr as *mut [u8; size_of::<Arp>()], 
+                            arp.serialise().try_into().unwrap()
+                        );
+                        writer_ptr += size_of::<Arp>() as u64;        
                 },
                 EtherType::IPv4(ipv4) => {                                      
                     // Write the IPv4 Header
-                    write_unaligned(
+                    write(
                         writer_ptr as *mut [u8; IPV4_HEADER_LEN as usize], 
                         ipv4.serialise().try_into().unwrap()
                     ); 
                     writer_ptr += IPV4_HEADER_LEN as u64;
+                    serial_print!("Writer_ptr {}\n", (writer_ptr - buffer) as u16);
 
                     match ipv4.protocol_data{
                         Protocol::UDP(udp) => {
                             // Write the UDP Header
-                            write_unaligned(
+                            write(
                                 writer_ptr as *mut [u8; UPD_HEADER_LEN as usize], 
                                 udp.serialise().try_into().unwrap()
                             );
                             writer_ptr += UPD_HEADER_LEN as u64;
-
-                            serial_print!("len: {:X}, {:X?}\n", udp.payload.len(), udp.payload);
+                            serial_print!("Writer_ptr {}\n", (writer_ptr - buffer) as u16);
 
                             // Write the UDP Data
-                            write_unaligned(
-                                writer_ptr as *mut [u8; core::mem::size_of::<super::dhcp::DHCP>()],
+                            write(
+                                writer_ptr as *mut [u8; DHCP_TOTAL_LEN],
                                 udp.payload.try_into().unwrap()
                             );
-                            writer_ptr += udp.payload.len() as u64;
+                            writer_ptr += DHCP_TOTAL_LEN as u64;
+                            serial_print!("{:X?}\n{:X?}\n{:X?}\n{:X?}\n", self.ethernet.serialise(), ipv4.serialise(), udp.serialise(), udp.payload);
+                            serial_print!("Writer_ptr {}\n", (writer_ptr - buffer) as u16);
                         }
                     }
                 }
@@ -110,6 +116,7 @@ impl<'a> Packet<'a>{
             }
             // Send the packet length to the NIC
             serial_print!("Packet len: {:#X}\n", (writer_ptr - buffer) as u16);
+            serial_print!("DHCP len: {:#X}\n", size_of::<super::dhcp::DHCP>());
             (writer_ptr - buffer) as u16
         }
     }
@@ -221,12 +228,12 @@ impl<'a> IPv4<'a>{
             dcp_ecn: 0x00, 
             // PROBLEM
             total_len: (IPV4_HEADER_LEN + len).to_be(),
-            identification: 0x0001,
+            identification: (0x0100u16).to_be(),
             flags_fragmentoffset: 0x00,
             ttl: 0x40,
             protocol_type: 0x11,
             // PROBLEM
-            header_checksum: 0x00,
+            header_checksum: (0x7845u16).to_be(),
             src_ip: [0x0; 4],
             dst_ip: [0xFF; 4],
             protocol_data: protocol,
@@ -235,6 +242,8 @@ impl<'a> IPv4<'a>{
 }
 
 impl<'a> ParsePacket for IPv4<'a>{}
+
+impl Serialise for Arp{}
 
 // #[repr(u8)]
 // #[derive(Debug, Clone, Copy)]
@@ -282,7 +291,7 @@ impl<'a> Udp<'a>{
         Self {
             src_port: (68 as u16).to_be(),
             dst_port: (67 as u16).to_be(),
-            len: (payload.len() as u16).to_be(),
+            len: (payload.len() as u16 + UPD_HEADER_LEN).to_be(),
             // Unimplemented
             checksum: 0,
             payload,

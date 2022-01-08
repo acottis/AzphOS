@@ -271,13 +271,17 @@ pub fn init() -> Result<NetworkCard> {
     // Create a new NIC
     let nic = NetworkCard::new(device);
 
-    // Puts the Recieve registers into our desired state and Allocates all the buffers and memory
-    Rdesc::init(&nic);
+    loop {
+        // Puts the Recieve registers into our desired state and Allocates all the buffers and memory
+        Rdesc::init(&nic);
+        
+        // Puts the Transmit registers into our desired state
+        Tdesc::init(&nic);
     
-    // Puts the Transmit registers into our desired state
-    Tdesc::init(&nic);
+        super::dhcp::init(&nic);
 
-    super::dhcp::init(&nic);
+        crate::time::sleep(10);
+    }
 
     Ok(nic)
 }

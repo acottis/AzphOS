@@ -33,7 +33,7 @@ fn entry(entry_point: u16) {
     loop {
         //serial_print!("{:#X?}\n", &packet);
 
-        nic.send(Packet::new(EtherType::Arp(Arp::new())));
+        //nic.send(Packet::new(EtherType::Arp(Arp::new())));
         let packets = nic.receive();
         crate::time::sleep(5);
     }
