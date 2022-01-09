@@ -13,4 +13,9 @@ trait Serialise{
             &*core::ptr::slice_from_raw_parts((&*self as *const Self) as *const u8, core::mem::size_of::<Self>())
         }
     }
+
+    fn deserialise(raw: &'static [u8], length: usize) -> Option<Self> 
+    where Self: Sized{
+        todo!();
+    }
 }

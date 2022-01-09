@@ -212,28 +212,15 @@ impl NetworkCard{
                 // Get the current Recieve Descriptor from our allocated memory and put it on the stack
                 let mut rdesc: Rdesc = core::ptr::read_volatile(rdesc_base_ptr.offset(offset));
                 
+                // crate::serial_print!("Recieved Packet: {:X?}\n", rdesc);
                 //A non zero status means a packet has arrived and is ready for processing
                 if rdesc.status != 0{
-                    let packet = Packet::parse(rdesc.buffer, rdesc.len);
+                    let packet = Packet::parse(rdesc.buffer, rdesc.len as usize);
                     // We only care about IPv4/ARP this will drop all the others without processing as when detected
-                    // they return [`None`]
+                    // they return [None]
                     if let Some(p) = packet {
-                        // serial_print!("H: {}, T: {}, Pos: {}, {:X?}\n", 
-                        //     nic.read(REG_RDH), 
-                        //     nic.read(REG_RDT), 
-                        //     offset, 
-                        //     rdesc);
-                        //serial_print!("{:X?}\n", p);
-                        // Only process ARPs
-                        match p.ethertype {
-                            crate::net::packet::EtherType::Arp(arp)=> {
-                                serial_print!("Found arp!\n");
-                            }
-                            _=> {
-                                recieved_packets[packet_counter] = Some(p);
-                                packet_counter += 1;
-                            }
-                        }
+                        recieved_packets[packet_counter] = Some(p);
+                        packet_counter += 1;
                     }
                     // We have processed the packet and set status to 0 to indicate the buffer can overwrite
                     rdesc.status = 0;
@@ -271,16 +258,19 @@ pub fn init() -> Result<NetworkCard> {
     // Create a new NIC
     let nic = NetworkCard::new(device);
 
-    loop {
-        // Puts the Recieve registers into our desired state and Allocates all the buffers and memory
-        Rdesc::init(&nic);
-        
-        // Puts the Transmit registers into our desired state
-        Tdesc::init(&nic);
+    // Puts the Recieve registers into our desired state and Allocates all the buffers and memory
+    Rdesc::init(&nic);
     
+    // Puts the Transmit registers into our desired state
+    Tdesc::init(&nic);
+    
+    loop {
         super::dhcp::init(&nic);
 
-        crate::time::sleep(10);
+        //nic.send(Packet::new(EtherType::Arp(Arp::new())));
+        let packets = nic.receive();
+
+        crate::time::sleep(4);
     }
 
     Ok(nic)

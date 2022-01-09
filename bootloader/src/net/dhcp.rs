@@ -41,7 +41,6 @@ pub fn init(nic: &NetworkCard){
     let dhcp = DHCP::new();
     let udp = Udp::new(dhcp.serialise());
     let ipv4 = IPv4::new(Protocol::UDP(udp));
-
     let packet = Packet::new(EtherType::IPv4(ipv4));
 
     nic.send(packet);
