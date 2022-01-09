@@ -3,8 +3,7 @@
 
 use core::mem::size_of;
 use core::ptr::{slice_from_raw_parts, write};
-use crate::net::dhcp::DHCP_TOTAL_LEN;
-
+use super::dhcp::DHCP_TOTAL_LEN;
 use super::MAC;
 use super::Serialise;
 
@@ -14,27 +13,35 @@ const IPV4_HEADER_LEN: usize = 20;
 const UDP_HEADER_LEN: u16 = 8;
 /// The size of an Ethernet header
 const ETH_HEADER_LEN: usize = 14;
+/// The size of an ARP header
+const ARP_HEADER_LEN: usize = 28;
 /// This is our way of turning a raw packet buffer from the NIC into a more user friendly representation
 /// 
 #[derive(Debug, Clone, Copy)]
-pub struct Packet<'a>{
+pub struct Packet{
     ethernet: Ethernet,
-    pub ethertype: EtherType<'a>,
+    pub ethertype: EtherType,
+    length: usize,
 }
 
-impl<'a> Packet<'a>{
+impl Packet{
     /// Creates a packet
     //pub fn new(ethernet: Ethernet, ethertype: EtherType, data: &'static [u8]) -> Self {
-    pub fn new(ethertype:  EtherType<'a>) -> Self {
+    pub fn new(ethertype:  EtherType) -> Self {
     
-        let ethernet = match ethertype {
-            EtherType::Arp(_) => Ethernet::new([0xFF; 6], MAC, 0x0608),
-            EtherType::IPv4(_) => Ethernet::new([0xFF; 6], MAC, 0x0008),        
+        let (ethernet, length) = match ethertype {
+            EtherType::Arp(arp) => {
+                (Ethernet::new([0xFF; 6], MAC, 0x0608), ARP_HEADER_LEN)
+            },
+            EtherType::IPv4(ipv4) => {       
+                (Ethernet::new([0xFF; 6], MAC, 0x0008), ipv4.total_len as usize)
+            }   
         };
 
         Self{
             ethernet,
             ethertype,
+            length,
         }
 
     }
@@ -45,12 +52,12 @@ impl<'a> Packet<'a>{
 
         // Gets the raw data from the memory buffer given to the NIC
         let raw = unsafe {
-            core::slice::from_raw_parts(buffer_address as *const u8, length as usize)
+            &*slice_from_raw_parts(buffer_address as *const u8, length as usize)
         };
         //crate::serial_print!("{:X?}\n", raw);
 
         // Parse out the Ethernet header
-        let ethernet = Ethernet::deserialise(&raw[0..ETH_HEADER_LEN], ETH_HEADER_LEN).unwrap();
+        let ethernet = Ethernet::deserialise(&raw[0..ETH_HEADER_LEN]).unwrap();
         //crate::serial_print!("{:X?}\n", ethernet);
 
         // Depending on the Ethertype do...
@@ -58,11 +65,12 @@ impl<'a> Packet<'a>{
             // Ipv4
             0x0800 => {
                // crate::serial_print!("Found IPv4\n");
-                let ipv4 = IPv4::deserialise(&raw[ETH_HEADER_LEN..length as usize], IPV4_HEADER_LEN);
+                let ipv4 = IPv4::deserialise(&raw[ETH_HEADER_LEN..length as usize]);
                 if let Some(ipv4) = ipv4{
                     Some(Self{
                         ethernet,
                         ethertype: EtherType::IPv4(ipv4),
+                        length,
                     })
                 }else{
                     None
@@ -71,11 +79,12 @@ impl<'a> Packet<'a>{
             // Arp
             0x0806 => {
                // crate::serial_print!("Found Arp\n");
-                let arp: Option<Arp> = Arp::deserialise(&raw[ETH_HEADER_LEN..length as usize], length);
+                let arp: Option<Arp> = Arp::deserialise(&raw[ETH_HEADER_LEN..length as usize]);
                 if let Some(arp) = arp{
                     Some(Self{
                         ethernet,
                         ethertype: EtherType::Arp(arp),
+                        length,
                     })
                 }else{
                     None
@@ -160,8 +169,8 @@ impl Ethernet{
 }
 
 #[derive(Debug, Clone, Copy)]
-pub enum EtherType<'a>{
-    IPv4(IPv4<'a>),
+pub enum EtherType{
+    IPv4(IPv4),
     Arp(Arp),
 }
 
@@ -208,7 +217,7 @@ impl Arp{
 /// This struct is a representation of an IPv4 Header, we dont handle Options
 #[repr(C)]
 #[derive(Debug, Clone, Copy)]
-pub struct IPv4<'a>{
+pub struct IPv4{
     version_ihl: u8, 
     dcp_ecn: u8, 
     total_len: u16,
@@ -219,11 +228,11 @@ pub struct IPv4<'a>{
     header_checksum: u16,
     src_ip: [u8; 4],
     dst_ip: [u8; 4],
-    pub protocol_data: Protocol<'a>,
+    pub protocol_data: Protocol,
 }
 
-impl<'a> IPv4<'a>{
-    pub fn new(protocol: Protocol<'a>) -> Self{
+impl IPv4{
+    pub fn new(protocol: Protocol) -> Self{
         let len = match protocol {
             Protocol::UDP(udp) => {
                 udp.len.to_be()
@@ -264,21 +273,21 @@ impl<'a> IPv4<'a>{
 }
 
 #[derive(Debug, Clone, Copy)]
-pub enum Protocol<'a>{
-    UDP(Udp<'a>)
+pub enum Protocol{
+    UDP(Udp)
 }
 
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
-pub struct Udp<'a>{
+pub struct Udp{
     src_port: u16,
     dst_port: u16,
     len: u16,
     checksum: u16,
-    payload: &'a [u8]
+    pub payload: &'static [u8]
 }
-impl<'a> Udp<'a>{
-    pub fn new(payload: &'a[u8]) -> Self{
+impl Udp{
+    pub fn new(payload: &'static [u8]) -> Self{
         Self {
             src_port: (68 as u16).to_be(),
             dst_port: (67 as u16).to_be(),
@@ -289,37 +298,36 @@ impl<'a> Udp<'a>{
         }
     }
 }
-impl<'a> Serialise for Udp<'a>{
-    fn serialise(&self) -> &[u8]
-    where Self: Sized {
+impl Serialise for Udp{
+    fn serialise(&self) -> &'static [u8] {
         unsafe {
             &*slice_from_raw_parts((&*self as *const Self) as *const u8, UDP_HEADER_LEN as usize)
         }
     }
-    fn deserialise(raw: &'static [u8], length: usize) -> Option<Self> {
+    fn deserialise(raw: &'static [u8]) -> Option<Self> {
         Some(Self{
             src_port: u16::from_be_bytes(raw[0..2].try_into().unwrap()),
             dst_port: u16::from_be_bytes(raw[2..4].try_into().unwrap()),
             len: u16::from_be_bytes(raw[4..6].try_into().unwrap()),
             checksum: u16::from_be_bytes(raw[6..8].try_into().unwrap()),
-            payload: &raw[8..length],
+            payload: &raw[8..raw.len()],
         })
     }
 }
-impl<'a> Serialise for IPv4<'a>{
-    fn serialise(&self) -> &[u8]
+impl Serialise for IPv4{
+    fn serialise(&self) -> &'static [u8]
     {
         unsafe {
             &*slice_from_raw_parts((&*self as *const Self) as *const u8, IPV4_HEADER_LEN as usize)
         }
     }
-    fn deserialise(raw: &'static [u8], length: usize) -> Option<Self> {
+    fn deserialise(raw: &'static [u8]) -> Option<Self> {
 
         let protocol_type = u8::from_be_bytes(raw[9..10].try_into().unwrap());
 
         let protocol_data = match protocol_type {
             0x11 => {
-                let udp = Udp::deserialise(&raw[ETH_HEADER_LEN+IPV4_HEADER_LEN..], length);
+                let udp = Udp::deserialise(&raw[IPV4_HEADER_LEN..]);
                 if let Some(udp) = udp{
                     Protocol::UDP(udp)
                 }else{
@@ -346,7 +354,7 @@ impl<'a> Serialise for IPv4<'a>{
 }
 
 impl Serialise for Ethernet{
-    fn deserialise(raw: &[u8], length: usize) -> Option<Self> {
+    fn deserialise(raw: &[u8]) -> Option<Self> {
         Some(Self{
             dst_mac: raw[0..6].try_into().unwrap(),
             src_mac: raw[6..12].try_into().unwrap(),
@@ -356,7 +364,7 @@ impl Serialise for Ethernet{
 }
 
 impl Serialise for Arp{
-    fn deserialise(raw: &'static [u8], length: usize) -> Option<Self>{
+    fn deserialise(raw: &[u8]) -> Option<Self>{
         Some(Self {
             htype: u16::from_be_bytes(raw[0..2].try_into().unwrap()),
             ptype: u16::from_be_bytes(raw[2..4].try_into().unwrap()),

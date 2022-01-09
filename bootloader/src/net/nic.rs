@@ -10,7 +10,6 @@ const E1000: (u16, u16) = (0x100E, 0x8086);
 const PACKET_SIZE: u64 = 2048;
 
 // Register offsets of the E1000
-const REG_CTRL: u32 = 0x0000; 
 const REG_RCTL: u32 = 0x0100;
 const REG_RDBAL: u32 = 0x2800;
 const REG_RDBAH: u32 = 0x2804;
@@ -135,7 +134,7 @@ impl Tdesc{
     }
 }
 /// This struct finds the network card and stores information we need from it
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Clone, Copy)]
 pub struct NetworkCard {
     mmio_base: u32,
     mac: [u8; 6],
@@ -175,7 +174,7 @@ impl NetworkCard{
     }
     /// This function will be able to send packets and will be exposed
     /// We currently only support one descriptor in the buffer
-    pub fn send(&self, packet: Packet) {
+    pub fn send(&self, packet: &Packet) {
         // Get a ptr to the base address of the descriptors
         let tdesc_base_ptr = TRANSMIT_DESC_BASE_ADDRESS as *mut Tdesc;
         unsafe{

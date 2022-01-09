@@ -2,7 +2,7 @@
 //! pretty print
 //! #TODO
 //! * Epoch Time
-use crate::{cpu, serial_print};
+use crate::cpu;
 
 /// Stores the current time in its raw parts
 /// 
