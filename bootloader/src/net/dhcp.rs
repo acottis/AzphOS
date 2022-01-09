@@ -44,6 +44,9 @@ pub fn init(nic: &NetworkCard){
     let packet = Packet::new(EtherType::IPv4(ipv4));
 
     nic.send(packet);
+}
+
+pub fn handler(){
 
 }
 

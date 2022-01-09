@@ -2,7 +2,7 @@
 //! to the rest of the OS our main entry points from our OS to our nic are [NetworkCard::send] and [NetworkCard::recieve]
 use crate::{serial_print};
 use crate::error::{Result, Error};
-use super::packet::{EtherType, Packet};
+use super::packet::Packet;
 
 // Supported Nics
 // E1000 Qemu Versions
@@ -264,15 +264,6 @@ pub fn init() -> Result<NetworkCard> {
     // Puts the Transmit registers into our desired state
     Tdesc::init(&nic);
     
-    loop {
-        super::dhcp::init(&nic);
-
-        //nic.send(Packet::new(EtherType::Arp(Arp::new())));
-        let packets = nic.receive();
-
-        crate::time::sleep(4);
-    }
-
     Ok(nic)
 }
 

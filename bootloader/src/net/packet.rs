@@ -57,7 +57,7 @@ impl<'a> Packet<'a>{
         match ethernet.ethertype{
             // Ipv4
             0x0800 => {
-                crate::serial_print!("Found IPv4\n");
+               // crate::serial_print!("Found IPv4\n");
                 let ipv4 = IPv4::deserialise(&raw[ETH_HEADER_LEN..length as usize], IPV4_HEADER_LEN);
                 if let Some(ipv4) = ipv4{
                     Some(Self{
@@ -70,8 +70,16 @@ impl<'a> Packet<'a>{
             },
             // Arp
             0x0806 => {
-                crate::serial_print!("Found Arp\n");
-                None
+               // crate::serial_print!("Found Arp\n");
+                let arp: Option<Arp> = Arp::deserialise(&raw[ETH_HEADER_LEN..length as usize], length);
+                if let Some(arp) = arp{
+                    Some(Self{
+                        ethernet,
+                        ethertype: EtherType::Arp(arp),
+                    })
+                }else{
+                    None
+                }
             },
             // We dont recongise the ethertype, drop it
             _=> None
@@ -88,9 +96,6 @@ impl<'a> Packet<'a>{
 
             match self.ethertype{
                 EtherType::Arp(arp) => { 
-                        // let arp = &*slice_from_raw_parts(
-                        //     (&arp as *const Arp) as *const u8, 
-                        //     size_of::<Arp>());
                         write(
                             writer_ptr as *mut [u8; size_of::<Arp>()], 
                             arp.serialise().try_into().unwrap()
@@ -214,7 +219,7 @@ pub struct IPv4<'a>{
     header_checksum: u16,
     src_ip: [u8; 4],
     dst_ip: [u8; 4],
-    protocol_data: Protocol<'a>,
+    pub protocol_data: Protocol<'a>,
 }
 
 impl<'a> IPv4<'a>{
@@ -350,29 +355,18 @@ impl Serialise for Ethernet{
     }
 }
 
-impl Serialise for Arp{}
-
-
-
-
-// // impl<'a> ParsePacket for IPv4<'a>{}
-
-// /// This trait allows us to generically handle getting the headers and data for IPv4 and ARP (ARP Doesnt have data though...?)
-// trait ParsePacket {
-//     /// Starts reading the packet from the end point of the ethernet header for the length of the EtherType
-//     fn headers<T>(start_address: u64) -> T{
-//         unsafe{
-//             read_unaligned((start_address+(size_of::<Ethernet>()) as u64) as *const T)
-//         }
-//     }  
-//     /// Reads the extra bytes at the end of the packets headers
-//     fn data<T>(start_address: u64, length: u16) -> &'static [u8]{
-//         let data_len = length as u16 - (size_of::<Ethernet>() as u16 + size_of::<T>() as u16);
-//         unsafe{
-//             &*slice_from_raw_parts(
-//                 (start_address + 
-//                 size_of::<Ethernet>() as u64 + 
-//                 size_of::<T>() as u64) as *const u8, data_len as usize)
-//         }
-//     }
-// }
+impl Serialise for Arp{
+    fn deserialise(raw: &'static [u8], length: usize) -> Option<Self>{
+        Some(Self {
+            htype: u16::from_be_bytes(raw[0..2].try_into().unwrap()),
+            ptype: u16::from_be_bytes(raw[2..4].try_into().unwrap()),
+            hlen:  raw[4],
+            plen:  raw[5],
+            oper:  u16::from_be_bytes(raw[6..8].try_into().unwrap()),
+            sha:  raw[8..14].try_into().unwrap(),
+            spa:  raw[14..18].try_into().unwrap(),
+            tha:  raw[18..24].try_into().unwrap(),
+            tpa:  raw[24..28].try_into().unwrap(),
+        })
+    }
+}
