@@ -13,6 +13,8 @@
 * Get DateTime from CMOS
 * PCI get a list of PCI devices and parse the 128-bits of information
 * ACPI started, we got the RSD Pointer and then the RSD Table which lead us to the ACPI tables (WIP)
+* NIC working, we get the NIC from the PCI devices list, we have an E1000 network driver which does basic send recieve. Packet structure parsing
+and reading are in but need a lot of work. We can handle ARP and DHCP right now in a very static way.
 
 ## How to
 1. From the root Directory
