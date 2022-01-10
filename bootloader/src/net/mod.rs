@@ -1,15 +1,15 @@
+//! We manage all things network in this module, this exposes the networking functionality to the other OS use cases
 pub mod nic;
 pub mod packet;
 mod dhcp;
-
-
 use packet::{EtherType, Protocol};
-use nic::NetworkCard;
 
+/// This is a temporary way of exposing our MAC, will change this in future
 const MAC: [u8; 6] = [0x52,0x54,0x00,0x12,0x34,0x56];
-
+/// Where we currently hold our IP address, thinking of moving this into [`NetworkCard`]
 static mut IP_ADDR: [u8; 4] = [0u8; 4];
 
+/// This is a trait we use in net to turn structs to bytes and back again.
 trait Serialise{
     fn serialise(&self) -> &'static [u8] 
         where Self: Sized{
@@ -24,11 +24,11 @@ trait Serialise{
     }
 }
 
+/// Finds all the network cards on the system then uses the first one, we currently only support E1000 NIC's
 pub fn init(){
 
     let nic = nic::init().expect("Cant init Network");
-
-    let mut dhcp_daemon = dhcp::Deamon::new(nic);
+    let mut dhcp_daemon = dhcp::Daemon::new(nic);
 
     loop {
         dhcp_daemon.update(None);
@@ -43,8 +43,7 @@ pub fn init(){
                         crate::serial_print!("Found IPv4: ");
                         match ipv4.protocol_data{
                             Protocol::UDP(udp) => {
-                                //crate::serial_print!("{:02X?}\n", udp);
-                                if udp.payload.len() >= 240 && (&udp.payload[236..240] == &[0x63,0x82,0x53,0x63]){
+                                if udp.payload.len() >= 240 && (&udp.payload[236..240] == &dhcp::DHCP::MAGIC){
                                     crate::serial_print!("DHCP!\n");
                                     dhcp_daemon.update(Some(&udp.payload))
                                 }else{
@@ -60,6 +59,6 @@ pub fn init(){
                 }
             }
         }    
-        crate::time::sleep(4);
+        crate::time::sleep(3);
     }
 }

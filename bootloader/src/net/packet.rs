@@ -3,7 +3,7 @@
 
 use core::mem::size_of;
 use core::ptr::{slice_from_raw_parts, write};
-use super::dhcp::DHCP_TOTAL_LEN;
+use super::dhcp::DHCP;
 use super::MAC;
 use super::Serialise;
 
@@ -130,10 +130,10 @@ impl Packet{
 
                             // Write the UDP Data
                             write(
-                                writer_ptr as *mut [u8; DHCP_TOTAL_LEN],
+                                writer_ptr as *mut [u8; DHCP::PAYLOAD_LEN],
                                 udp.payload.try_into().unwrap()
                             );
-                            writer_ptr += DHCP_TOTAL_LEN as u64;
+                            writer_ptr += DHCP::PAYLOAD_LEN as u64;
                         }
                     }
                 }
