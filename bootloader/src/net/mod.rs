@@ -1,9 +1,7 @@
 //! We manage all things network in this module, this exposes the networking functionality to the other OS use cases
-mod nic;
-mod packet;
-mod tftp;
+pub mod nic;
+pub mod packet;
 mod dhcp;
-mod arp;
 use packet::{EtherType, Protocol};
 
 /// This is a temporary way of exposing our MAC, will change this in future
@@ -38,9 +36,6 @@ pub fn init(){
         //nic.send(Packet::new(EtherType::Arp(Arp::new())));
         let packets = &nic.receive();
     
-        let tftp_init = tftp::init();
-        crate::serial_print!("{:X?}", tftp_init);
-        nic.send(&tftp_init);
         for packet in packets{
             if let Some(p) = packet{    
                 match p.ethertype{
