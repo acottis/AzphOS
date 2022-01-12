@@ -100,7 +100,7 @@ impl DHCP {
         (offset + 2 + len) as usize
     }
     /// Helper function to find value in DHCP options (Currently untested)
-    fn find_option(&self, option: u8){
+    fn _find_option(&self, option: u8){
         let mut skip = 0;
         for (i, val) in self.options.iter().enumerate() {
             if skip != 0{

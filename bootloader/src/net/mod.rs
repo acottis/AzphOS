@@ -1,8 +1,10 @@
 //! We manage all things network in this module, this exposes the networking functionality to the other OS use cases
-pub mod nic;
-pub mod packet;
+mod nic;
+mod packet;
+mod arp;
 mod dhcp;
-use packet::{EtherType, Protocol};
+use arp::Arp;
+use packet::{EtherType, Protocol, Packet};
 
 /// This is a temporary way of exposing our MAC, will change this in future
 const MAC: [u8; 6] = [0x52,0x54,0x00,0x12,0x34,0x56];
@@ -18,7 +20,7 @@ trait Serialise{
         }
     }
 
-    fn deserialise(raw: &'static [u8]) -> Option<Self> 
+    fn deserialise(_raw: &'static [u8]) -> Option<Self> 
     where Self: Sized{
         todo!();
     }
@@ -33,7 +35,7 @@ pub fn init(){
     loop {
         dhcp_daemon.update(None);
         
-        //nic.send(Packet::new(EtherType::Arp(Arp::new())));
+        nic.send(&Packet::new(EtherType::Arp(Arp::new([0xFFu8; 4]))));
         let packets = &nic.receive();
     
         for packet in packets{
@@ -56,7 +58,6 @@ pub fn init(){
                     EtherType::Arp(_) => {
                         crate::serial_print!("Found ARP\n");
                     },
-                    _=> {}
                 }
             }
         }    

@@ -11,6 +11,6 @@ pub enum Error{
     /// No PCI network card found
     NoNICFound,
 
-    /// We have not implemented this network protocol
-    UnsupportedEtherType(u16),
+    //// We have not implemented this network protocol
+   // UnsupportedEtherType(u16),
 }

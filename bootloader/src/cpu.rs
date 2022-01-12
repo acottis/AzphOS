@@ -2,8 +2,8 @@
 //! we wrap [`asm!`] in unsafe so we can reduce the amount of unsafe randomly scattered around our code
 //! Using [https://www.felixcloutier.com/x86/](https://www.felixcloutier.com/x86/) as a reference right now
 //! 
+#![allow(dead_code)]
 use core::arch::asm;
-
 /// Prevent the processor from rebooting by halting
 #[inline]
 pub fn halt() -> ! {
@@ -51,6 +51,7 @@ pub fn rtc_register(offset :u8) -> u8{
     in8(0x71)
 }
 #[inline]
+#[allow(unused_assignments)]
 pub fn esp() -> u32{
     unsafe{
         let mut x = 0;
