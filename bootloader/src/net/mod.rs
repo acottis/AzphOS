@@ -45,8 +45,7 @@ pub fn init(){
                             Protocol::UDP(udp) => {
                                 if udp.payload.len() >= 240 && (&udp.payload[236..240] == &dhcp::DHCP::MAGIC){
                                     crate::serial_print!("DHCP!\n");
-                                    dhcp_daemon.update(Some(&udp.payload));
-                                    unsafe { crate::serial_print!("IP Addr: {:?}\n", IP_ADDR); }
+                                    dhcp_daemon.update(Some(&udp.payload))
                                 }else{
                                     crate::serial_print!("UDP!\n");
                                 }
