@@ -40,38 +40,11 @@ impl DHCP {
     pub const MAGIC: [u8;4] = [0x63,0x82,0x53,0x63];
     /// We have a static Transaction ID, this is group our conversation with DHCP together
     const TRANSACTION_ID: u32 = 0x13371338;
-    /// We have static options for our Discover
-    const OPTIONS: [u8; Self::OPTIONS_LEN] = [
-        0x35,0x01,0x01, // Request
-        0x39,0x02,0x05,0xc0, //
-        0x37,0x02,
-        0x01,0x42,
-        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-        0xff // End
-    ];
-    /// We have static options for our Request
-    const OPTIONSREQUEST: [u8; Self::OPTIONS_LEN] = [
-        0x35,0x01,0x03, // Request
-        0x39,0x02,0x05,0xc0, //
-        0x37,0x02,
-        0x01,0x42,
-        0x32,0x04,0x0a,0x63,0x63,0x0b, // This is the IP we want
-        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-        0xff // End
-    ];
-    /// Creates a new DHCP packet, chooses different options if Discover or Request
-    fn new(state: DhcpState) -> Self {
-        let options = match state {
-            DhcpState::Discover => {
-                DHCP::OPTIONS
-            },
-            DhcpState::Request => {
-                DHCP::OPTIONSREQUEST
-            },
-            _=> unreachable!(),
-        };
 
-        Self {
+    /// Creates a new DHCP packet, chooses different options if Discover or Request
+    fn new(state: DhcpState, ip_addr: Option<[u8; 4]>) -> Self {
+
+        let mut dhcp_payload = Self {
             op: 0x1,
             htype: 0x1,
             hlen: 0x6,
@@ -87,10 +60,62 @@ impl DHCP {
             _chaddr_padding: [0u8; 10],
             _bootp_padding: [0u8; 192],
             magic: Self::MAGIC,
-            options,
+            options: [0u8; Self::OPTIONS_LEN],
+        };
+
+        let mut offset: usize = 0;
+        match state {
+            DhcpState::Discover => {
+                // Set DHCP Message Type to Discover
+                offset = dhcp_payload.append_option(0x35, &[0x1], offset);
+                // Set the DHCP max size to 1472
+                offset = dhcp_payload.append_option(0x39, &[0x05,0xc0], offset);
+                // Set the DHCP Options to ask for Subnet, Router and TFTP Server Name
+                dhcp_payload.append_option(0x37, &[0x01,0x42,0x42], offset);
+            },
+            DhcpState::Request => {
+                // Set DHCP Message Type to Request
+                offset = dhcp_payload.append_option(0x35, &[0x3], offset);
+                // Set the DHCP max size to 1472
+                offset = dhcp_payload.append_option(0x39, &[0x05,0xc0], offset);
+                // Set the DHCP Options to ask for Subnet, Router and TFTP Server Name
+                offset = dhcp_payload.append_option(0x37, &[0x01,0x42,0x42], offset);
+                // Request the address that was given STATIC IP AT THE MOMENT
+                dhcp_payload.append_option(0x32, &ip_addr.unwrap().as_slice(), offset);
+            },
+            _=> unreachable!(),
+        };
+        dhcp_payload.options[Self::OPTIONS_LEN - 1] = 0xFF;
+
+        dhcp_payload
+    }
+    /// Helper for appending option to DHCP options in a more dynamic way
+    fn append_option(&mut self, option: u8, data: &[u8], offset: usize) -> usize {
+        let len = data.len();
+        self.options[offset] = option;
+        self.options[offset + 1] = len as u8;
+        for (i, value) in data.iter().enumerate(){
+            self.options[offset + i + 2] = *value;
         }
-    }    
+        (offset + 2 + len) as usize
+    }
+    /// Helper function to find value in DHCP options (Currently untested)
+    fn find_option(&self, option: u8){
+        let mut skip = 0;
+        for (i, val) in self.options.iter().enumerate() {
+            if skip != 0{
+                skip -= 1;
+                continue;
+            }
+            if *val == option {
+                crate::serial_print!("Found val! at index: {}", i);
+            }else{
+                skip = self.options[i+1] + 1
+            }
+        }
+    }
 }
+
 impl Serialise for DHCP{
     fn serialise(&self) -> &'static [u8] {
         unsafe {
@@ -121,6 +146,7 @@ impl Serialise for DHCP{
         })
     }
 }
+
 /// This struct acts as a service for DHCP that responds based on what state we are in
 /// TODO is to add the lease time and renewal
 /// Also Make it aware of our IP state.
@@ -142,7 +168,7 @@ impl Daemon{
     pub fn update(&mut self, data: Option<&'static [u8]>) {    
         match self.state {
             DhcpState::Uninitiated => {
-                let dhcp = DHCP::new(DhcpState::Discover);
+                let dhcp = DHCP::new(DhcpState::Discover, None);
                 let udp = Udp::new(dhcp.serialise());
                 let ipv4 = IPv4::new(Protocol::UDP(udp));
                 let packet = Packet::new(EtherType::IPv4(ipv4));
@@ -151,14 +177,14 @@ impl Daemon{
             },
             DhcpState::Discover => {
                 if let Some(d) = data{
-                    let dhcp = DHCP::deserialise(d).unwrap();
+                    let dhcp_res = DHCP::deserialise(d).unwrap();
                     // Confirm its a DHCP Offer
-                    if dhcp.options[0..3] != [0x35, 0x01, 0x02] { return }
+                    if dhcp_res.options[0..3] != [0x35, 0x01, 0x02] { return }
                     // Confirm its our transaction
-                    if dhcp.xid != DHCP::TRANSACTION_ID { return }
+                    if dhcp_res.xid != DHCP::TRANSACTION_ID { return }
                     
                     // Send out the request
-                    let dhcp = DHCP::new(DhcpState::Request);
+                    let dhcp = DHCP::new(DhcpState::Request, Some(dhcp_res.yiaddr));
                     let udp = Udp::new(dhcp.serialise());
                     let ipv4 = IPv4::new(Protocol::UDP(udp));
                     let packet = Packet::new(EtherType::IPv4(ipv4));
@@ -174,12 +200,12 @@ impl Daemon{
                     if dhcp.options[0..3] != [0x35, 0x01, 0x05] { return }
                     // Confirm its our transaction
                     if dhcp.xid != DHCP::TRANSACTION_ID { return }
+
                     unsafe { super::IP_ADDR = dhcp.yiaddr };
                     self.state = DhcpState::Acknowledged;
                 }
             },
-            DhcpState::Acknowledged => {
-            },
+            DhcpState::Acknowledged => {},
         }
     }
 }
