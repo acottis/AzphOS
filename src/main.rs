@@ -26,8 +26,8 @@ enum Error{
 /// Main program loop
 /// 
 fn main(){
-    const FLATTENED_IMAGE_PATH: &'static str = "bootloader/build/bootloader.flat";
-    const BOOTLOADER_EXE: &'static str = "bootloader/target/i586-pc-windows-msvc/release/bootloader.exe";
+    const FLATTENED_IMAGE_PATH: &str = "bootloader/build/bootloader.flat";
+    const BOOTLOADER_EXE: &str = "bootloader/target/i586-pc-windows-msvc/release/bootloader.exe";
     
     // This function compiles the bootloader that we will use as a stage0
     build_bootloader().expect("Failed to build bootloader");
@@ -56,7 +56,7 @@ fn main(){
 fn write_flattened_image(bytes: &[u8], path :&str) -> Result<()>{
     use std::io::Write;
     let mut output = std::fs::File::create(path).map_err(Error::CantCreateBinary)?;
-    output.write(&bytes).map_err(Error::CantCreateBinary)?;
+    output.write(bytes).map_err(Error::CantCreateBinary)?;
     Ok(())
 }
 /// This function compiles the assembly code with the entry point found in the PE
@@ -80,9 +80,9 @@ fn build_asm(entry: u32) -> Result<()>{
         },
         Some(_) => {
             let stderr = String::from_utf8(res.stderr).map_err(Error::CantConvertToUtf)?;
-            return Err(Error::NasmBuildFailed(stderr))
+            Err(Error::NasmBuildFailed(stderr))
         },
-        None => return Err(Error::CommandDidNotComplete),
+        None => Err(Error::CommandDidNotComplete),
     }
  }
 /// This function comiples the bootloader in the subfolder and returns an error if it fails
@@ -99,9 +99,9 @@ fn build_bootloader() -> Result<()>{
         },
         Some(_) => {
             let stderr = String::from_utf8(res.stderr).map_err(Error::CantConvertToUtf)?;
-            return Err(Error::CargoBuildFailed(stderr))
+            Err(Error::CargoBuildFailed(stderr))
         },
-        None => return Err(Error::CommandDidNotComplete),
+        None => Err(Error::CommandDidNotComplete),
     }
 }
 
@@ -264,7 +264,7 @@ impl Pe{
             };
             //let to_copy: usize = std::cmp::min(section.virtual_size, section.sizeof_rawdata) as usize;
             program.resize(section.virtual_addr as usize, 0);
-            program.extend_from_slice(&bytes);
+            program.extend_from_slice(bytes);
         }
         //println!("Raw Program: {:X?}", program);
         Ok(program)

@@ -29,7 +29,13 @@ trait Serialise{
 /// Finds all the network cards on the system then uses the first one, we currently only support E1000 NIC's
 pub fn init(){
 
-    let nic = nic::init().expect("Cant init Network");
+    let nic = match nic::init(){
+        Ok(n) => n,
+        Err(e) => {
+            crate::serial_print!("Cannot init network: {:X?}", e);
+            return
+        }
+    };
     let mut dhcp_daemon = dhcp::Daemon::new(nic);
 
     loop {

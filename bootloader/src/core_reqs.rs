@@ -88,14 +88,20 @@ unsafe extern "C" fn memset(s: *mut u8, c: i32, n: usize) -> *mut u8 {
     s
 }
 /// [https://source.winehq.org/WineAPI/_aulldiv.html](https://source.winehq.org/WineAPI/_aulldiv.html)
-/// This is currently wrong.
+/// No idea why I need this!
 #[no_mangle]
 unsafe extern fn _aulldiv(_a: usize, _b: usize) -> usize{
     0
 }
 /// [https://source.winehq.org/WineAPI/_aullrem.html](https://source.winehq.org/WineAPI/_aullrem.html)
-/// This is currently wrong.
+/// No idea why I need this!
 #[no_mangle]
 unsafe extern fn _aullrem(_a: usize, _b: usize) -> usize{
     0
+}
+
+/// No idea why I need this!
+#[no_mangle]
+unsafe extern fn __CxxFrameHandler3(){
+    unreachable!()
 }
