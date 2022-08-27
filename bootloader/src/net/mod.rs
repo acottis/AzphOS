@@ -2,8 +2,10 @@
 mod nic;
 mod packet;
 mod arp;
+mod dhcp;
 
 use arp::Arp;
+use dhcp::Dhcp;
 
 pub struct NetworkStack{
     nic: nic::NetworkCard
@@ -24,6 +26,7 @@ impl NetworkStack {
     /// This will process all network related tasks during the main OS loop
     pub fn update(&self) {
         self.send_arp();
+        self.dhcp_init();
     }
 
     pub fn send_arp(&self){
@@ -32,6 +35,12 @@ impl NetworkStack {
         let mut buf = [0u8; 42];
         let len = arp.serialise(&mut buf);
         self.nic.send(&buf, len)
+    }
+
+    pub fn dhcp_init(&self){
+        //let res = Dhcp::discover();
+
+
     }
 }
 

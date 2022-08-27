@@ -31,7 +31,6 @@ fn entry(entry_point: u16) {
     // Try to initialise network, dont continue if we fail
     let net = net::NetworkStack::init().unwrap();
     net.update();
-    net.update();
 
     cpu::halt();
 }
