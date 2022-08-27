@@ -53,10 +53,8 @@ struct Rdesc {
 }
 
 impl Rdesc{
-    /// First we put the recieve registers on the NIC into our desired state, such 
-    /// as the memory base address, tail/head, and size of buffer
-    /// Sets up a buffer of [`Rdesc`]'s with [RECEIVE_DESC_BUF_LENGTH] length and writes them
-    /// to [RECEIVE_DESC_BASE_ADDRESS]
+    /// First we put the recieve registers on the NIC into our desired state, such as the memory base address, tail/head, and size of buffer
+    /// Sets up a buffer of [`Rdesc`]'s with [RECEIVE_DESC_BUF_LENGTH] length and writes them to [RECEIVE_DESC_BASE_ADDRESS]
     /// We set the [`Rdesc.buffer`] field to the address where we want the raw packet to be, this packet size is determined by
     /// [PACKET_SIZE] this allocation is YOLO as we dont check ANYTHING
     pub fn init(nic: &NetworkCard){
@@ -139,7 +137,7 @@ impl Tdesc{
 #[derive(Default, Debug, Clone, Copy)]
 pub struct NetworkCard {
     mmio_base: u32,
-    pub mac: [u8; 6],
+    mac: [u8; 6],
 }
 
 impl NetworkCard{
@@ -176,44 +174,36 @@ impl NetworkCard{
     }
     /// This function will be able to send packets and will be exposed
     /// We currently only support one descriptor in the buffer
-    pub fn send(&self, buf: &[u8; 42], len: u16) {
-        // 48 is the minimum packet size 
-        let len = if len < 48 { 48 } else { len };
-        
+    pub fn send(&self, packet: &Packet) {
         // Get a ptr to the base address of the descriptors
         let tdesc_base_ptr = TRANSMIT_DESC_BASE_ADDRESS as *mut Tdesc;
         unsafe{
             // Get the current tdesc (index 0)
-            let mut tdesc: Tdesc = core::ptr::read(tdesc_base_ptr.offset(0));
+            let mut tdesc: Tdesc = core::ptr::read_volatile(tdesc_base_ptr.offset(0));
             // If the status indicates it has been procesed, move the tail down again
             if tdesc.status == 1 { 
                 self.write(REG_TDT, (self.read(REG_TDT) - 1) % 32);
-                tdesc.status = 0;
             }
-            // Write the packet to the buffer
-            core::ptr::write(tdesc.buffer as *mut [u8; 42], *buf);
-            serial_print!("Tdesc Status {}\nBuf: {:X?}\n", tdesc.status,*(tdesc.buffer as *const [u8; 42]));
-            //serial_print!("{:?}\n", tdesc);
-            // serial_print!("Sent Packet! H: {}, T: {}, Pos: {}, {:X?}\n", 
-            //     self.read(REG_TDH),
-            //     self.read(REG_TDT), 
-            //     0, 
-            //     tdesc);
-
-            // The len to send on the wire, this allows us to give it a buffer 
-            // of any size then only send the len we have chosen
+            serial_print!("Sent Packet! H: {}, T: {}, Pos: {}, {:X?}\n", 
+                self.read(REG_TDH), 
+                self.read(REG_TDT), 
+                0, 
+                tdesc);
+            // This turns a packet into raw bytes and adds to the buffer (We should make this return the bytes and len)
+            let len = packet.send(tdesc.buffer);
+            // This is hard coded len, needs to change
             tdesc.len = len;
             // Sets the command for End of Packet | Insert FCS/CRC | Enable Report Status
             tdesc.cmd = (1 << 3) | (1 << 1) | 1;
             // Writes out modified descriptor to the memory location of the descriptor
-            core::ptr::write(tdesc_base_ptr.offset(0), tdesc);
+            core::ptr::write_volatile(tdesc_base_ptr.offset(0), tdesc);
             // Moves the Tail up to request the NIC to process the packet
             self.write(REG_TDT, (self.read(REG_TDT) + 1) % 32);
         }
     }
     /// This function processes the emails in buffer of buffer size [RECEIVE_DESC_BUF_LENGTH]
     pub fn receive(&self) -> [Option<Packet>; 32] {
-        let mut received_packets: [Option<Packet>; 32] = [Default::default(); 32];
+        let mut recieved_packets: [Option<Packet>; 32] = [Default::default(); 32];
         let mut packet_counter = 0;
         let rdesc_base_ptr = RECEIVE_DESC_BASE_ADDRESS as *mut Rdesc;
         for offset in 0..RECEIVE_DESC_BUF_LENGTH as isize{
@@ -224,15 +214,13 @@ impl NetworkCard{
                 // crate::serial_print!("Recieved Packet: {:X?}\n", rdesc);
                 //A non zero status means a packet has arrived and is ready for processing
                 if rdesc.status != 0{
-                    let buf = core::ptr::read(rdesc.buffer as *mut &[u8]);
-                    
-                    // TODO!!!!!!!!!!!!!!!!!!!
-                    Packet::parse(buf, rdesc.len);
-                    // // We only care about IPv4/ARP this will drop all the others without processing as when detected
-                    // // they return [None]
-                    // received_packets[packet_counter] = Some(p);
-                    // packet_counter += 1;
-
+                    let packet = Packet::parse(rdesc.buffer, rdesc.len as usize);
+                    // We only care about IPv4/ARP this will drop all the others without processing as when detected
+                    // they return [None]
+                    if let Some(p) = packet {
+                        recieved_packets[packet_counter] = Some(p);
+                        packet_counter += 1;
+                    }
                     // We have processed the packet and set status to 0 to indicate the buffer can overwrite
                     rdesc.status = 0;
                     rdesc.len = 0;
@@ -243,7 +231,7 @@ impl NetworkCard{
                 }
             }
         } 
-        received_packets 
+        recieved_packets 
     }
     // Inbuilt functionality to generate arp broadcast
     //pub fn arp()

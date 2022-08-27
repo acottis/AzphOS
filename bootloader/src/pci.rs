@@ -108,9 +108,9 @@ pub struct Devices([Option<Device>; 10]);
 pub fn init() -> Devices {
     let mut pci_devices: Devices = Devices(Default::default());
     let mut found = 0;
-    for bus in 0..PCI_BUS_LEN{
-        for device in 0..PCI_DEVICE_LEN{
-            for function in 0..PCI_FUNCTION_LEN{
+    for bus in 0..PCI_BUS_LEN {
+        for device in 0..PCI_DEVICE_LEN {
+            for function in 0..PCI_FUNCTION_LEN {
                 if pci_read_32(bus, device, function, 0) == !0 { 
                     continue 
                 }

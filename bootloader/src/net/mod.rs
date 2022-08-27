@@ -2,71 +2,42 @@
 mod nic;
 mod packet;
 mod arp;
-mod dhcp;
+
 use arp::Arp;
-use packet::{EtherType, Protocol, Packet};
 
-/// This is a temporary way of exposing our MAC, will change this in future
-const MAC: [u8; 6] = [0x52,0x54,0x00,0x12,0x34,0x56];
-/// Where we currently hold our IP address, thinking of moving this into [`NetworkCard`]
-static mut IP_ADDR: [u8; 4] = [0u8; 4];
+pub struct NetworkStack{
+    nic: nic::NetworkCard
+}
 
-/// This is a trait we use in net to turn structs to bytes and back again.
-trait Serialise{
-    fn serialise(&self) -> &'static [u8] 
-        where Self: Sized{
-        unsafe {
-            &*core::ptr::slice_from_raw_parts((&*self as *const Self) as *const u8, core::mem::size_of::<Self>())
-        }
+impl NetworkStack {
+    pub fn init() -> Option<Self> {
+        match nic::init() {
+            Ok(nic) => Some(Self {
+                nic
+            }),
+            Err(e) => {
+                crate::serial_print!("Cannot init network: {:X?}", e);
+                None
+            }
+        } 
+    }
+    /// This will process all network related tasks during the main OS loop
+    pub fn update(&self) {
+        self.send_arp();
     }
 
-    fn deserialise(_raw: &'static [u8]) -> Option<Self> 
-    where Self: Sized{
-        todo!();
+    pub fn send_arp(&self){
+        let arp = Arp::new(&self.nic, [192,168,10,1]);
+        
+        let mut buf = [0u8; 42];
+        let len = arp.serialise(&mut buf);
+        self.nic.send(&buf, len)
     }
 }
 
-/// Finds all the network cards on the system then uses the first one, we currently only support E1000 NIC's
-pub fn init(){
 
-    let nic = match nic::init(){
-        Ok(n) => n,
-        Err(e) => {
-            crate::serial_print!("Cannot init network: {:X?}", e);
-            return
-        }
-    };
-    let mut dhcp_daemon = dhcp::Daemon::new(nic);
-
-    loop {
-        dhcp_daemon.update(None);
-        
-        nic.send(&Packet::new(EtherType::Arp(Arp::new([0xFFu8; 4]))));
-        let packets = &nic.receive();
-    
-        for packet in packets{
-            if let Some(p) = packet{    
-                match p.ethertype{
-                    EtherType::IPv4(ipv4) => {
-                        crate::serial_print!("Found IPv4: ");
-                        match ipv4.protocol_data{
-                            Protocol::UDP(udp) => {
-                                if udp.payload.len() >= 240 && (&udp.payload[236..240] == &dhcp::DHCP::MAGIC){
-                                    crate::serial_print!("DHCP!\n");
-                                    dhcp_daemon.update(Some(&udp.payload));
-                                    unsafe { crate::serial_print!("IP Addr: {:?}\n", IP_ADDR); }
-                                }else{
-                                    crate::serial_print!("UDP!\n");
-                                }
-                            }
-                        }
-                    },
-                    EtherType::Arp(_) => {
-                        crate::serial_print!("Found ARP\n");
-                    },
-                }
-            }
-        }    
-        crate::time::sleep(3);
-    }
+/// This trait will be responsible for turning our human readable
+/// structs into packet buffers when can send to the NIC
+trait Serialise{
+    fn serialise(&self, buf: &mut [u8]) -> u16;
 }

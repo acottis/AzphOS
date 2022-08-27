@@ -50,6 +50,7 @@ pub fn rtc_register(offset :u8) -> u8{
     out8(0x70, offset);
     in8(0x71)
 }
+/// Get the current stack pointer
 #[inline]
 #[allow(unused_assignments)]
 pub fn esp() -> u32{

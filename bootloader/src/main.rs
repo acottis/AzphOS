@@ -1,6 +1,5 @@
 #![no_std]
 #![no_main]
-#![feature(asm)]
 
 mod core_reqs;
 //mod display;
@@ -11,6 +10,8 @@ mod net;
 mod pci;
 mod error;
 
+// #[cfg(not(test))] is a fix for a Rust analyzer bug
+#[cfg(not(test))]
 #[panic_handler]
 fn panic(info: &core::panic::PanicInfo) -> ! {
     serial_print!("{}", info);
@@ -26,8 +27,11 @@ fn entry(entry_point: u16) {
     //clear!();
     serial_print!("We entered at: {:#X}\n", entry_point);
     serial_print!("Time is: {}\n", time::DateTime::now());
-    net::init();
 
-    serial_print!("\nDone\n");
+    // Try to initialise network, dont continue if we fail
+    let net = net::NetworkStack::init().unwrap();
+    net.update();
+    net.update();
+
     cpu::halt();
 }
