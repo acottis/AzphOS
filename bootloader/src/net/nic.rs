@@ -3,6 +3,7 @@
 use crate::{serial_print};
 use crate::error::{Result, Error};
 use super::packet::Packet;
+use super::MTU;
 
 // Supported Nics
 // E1000 Qemu Versions
@@ -176,7 +177,7 @@ impl NetworkCard{
     }
     /// This function will be able to send packets and will be exposed
     /// We currently only support one descriptor in the buffer
-    pub fn send(&self, buf: &[u8; 42], len: u16) {
+    pub fn send(&self, buf: &[u8; MTU], len: u16) {
         // 48 is the minimum packet size 
         let len = if len < 48 { 48 } else { len };
         
@@ -191,8 +192,8 @@ impl NetworkCard{
                 tdesc.status = 0;
             }
             // Write the packet to the buffer
-            core::ptr::write(tdesc.buffer as *mut [u8; 42], *buf);
-            serial_print!("Tdesc Status {}\nBuf: {:X?}\n", tdesc.status,*(tdesc.buffer as *const [u8; 42]));
+            core::ptr::write(tdesc.buffer as *mut [u8; MTU], *buf);
+            serial_print!("Tdesc Status {}\nBuf: {:X?}\n", tdesc.status, *(tdesc.buffer as *const [u8; 42]));
             //serial_print!("{:?}\n", tdesc);
             // serial_print!("Sent Packet! H: {}, T: {}, Pos: {}, {:X?}\n", 
             //     self.read(REG_TDH),

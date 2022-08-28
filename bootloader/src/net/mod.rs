@@ -3,9 +3,14 @@ mod nic;
 mod packet;
 mod arp;
 mod dhcp;
+mod ethernet;
 
 use arp::Arp;
-use dhcp::Dhcp;
+
+
+/// Maximum packet size we deal with, this is a mut ref to a buffer we pass around to create 
+/// our raw packet for sending to the NIC
+const MTU: usize = 1500;
 
 pub struct NetworkStack{
     nic: nic::NetworkCard
@@ -30,10 +35,11 @@ impl NetworkStack {
     }
 
     pub fn send_arp(&self){
-        let arp = Arp::new(&self.nic, [192,168,10,1]);
+        let mut buf = [0u8; MTU];
         
-        let mut buf = [0u8; 42];
+        let arp = Arp::new(&self.nic, [192,168,10,1]);
         let len = arp.serialise(&mut buf);
+        
         self.nic.send(&buf, len)
     }
 
