@@ -47,7 +47,7 @@ impl Arp{
     }
 
     /// This function sends an arp request to find the Target MAC for a given IP
-    pub fn who_has(ns: &NetworkStack, target_ipv4: [u8; 4]) {
+    fn who_has(ns: &NetworkStack, target_ipv4: [u8; 4]) {
 
         let mut buf = [0u8; MTU];
         
@@ -55,6 +55,15 @@ impl Arp{
         let len = arp.serialise(&mut buf);
 
         ns.nic.send(&buf, len)
+    }
+
+    /// This function deals with any arp work required
+    pub fn update(ns: &NetworkStack, target_ipv4: Option<[u8;4]>) -> Option<[u8; 4]>{
+        if let Some(target_ipv4) = target_ipv4{
+            Self::who_has(ns, target_ipv4)
+        }
+
+        None
     }
 }
 

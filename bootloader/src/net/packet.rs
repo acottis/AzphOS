@@ -7,7 +7,7 @@ use super::Arp;
 #[derive(Clone, Copy, Debug)]
 pub struct Packet{
     ethernet: Ethernet,
-    ether_type: EtherType
+    pub ether_type: EtherType
 
 }
 
@@ -37,7 +37,7 @@ impl Packet{
 }
 
 #[derive(Debug, Clone, Copy)]
-enum EtherType{
+pub enum EtherType{
     Arp(Arp),
     Unknown,
 }

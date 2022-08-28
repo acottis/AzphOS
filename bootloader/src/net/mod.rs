@@ -7,7 +7,7 @@ mod ethernet;
 
 use arp::Arp;
 use ethernet::{Ethernet, ETHERNET_LEN};
-use packet::Packet;
+use packet::{EtherType, Packet};
 
 /// Maximum packet size we deal with, this is a mut ref to a buffer we pass around to create 
 /// our raw packet for sending to the NIC
@@ -32,14 +32,34 @@ impl NetworkStack {
         } 
     }
     /// This will process all network related tasks during the main OS loop
-    pub fn update(&self) {
+    pub fn update(&self, asked: &mut bool) {
 
-        Arp::who_has(&self, [192,168,10,1]);
+        // This is ugly and for testing, will be removed
+        let target = if *asked == false {
+            *asked = true;
+            Some([192,168,10,1])
+        }else{
+            None
+        };
 
-        loop {
-            self.nic.receive();
+        // We call this every network update to check if anything has changed relating to Arp
+        // such as a request for more IP addresses or someone on the network wants us to anounce our
+        // IP address
+        Arp::update(&self, target);
+        
+        let packets = self.nic.receive();
+        for packet in packets{
+            if let Some(packet) = packet{
+                match packet.ether_type{
+                    EtherType::Arp(arp) => {
+                        crate::serial_print!("{arp:?}\n");
+                    },
+                    _ => {},
+                }
+            }
         }
-
+        // If packets contains a ARP packet
+        // Arp::update_table() | Arp::AnnouceIP
     }
 
     // pub fn dhcp_init(&self){
