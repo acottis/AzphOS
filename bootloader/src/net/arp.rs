@@ -1,5 +1,10 @@
 //! Deals with all things Arp
-use super::nic::NetworkCard;
+use super::NetworkStack;
+use super::Serialise;
+use super::ETHERNET_LEN;
+use super::MTU;
+
+const ARP_LEN: usize = 42;
 
 /// This struct is a representation of an ARP Header 
 #[derive(Debug, Clone, Copy)]
@@ -27,27 +32,34 @@ pub struct Arp{
 
 impl Arp{
     /// Create a new arp packet
-    pub fn new(nic: &NetworkCard, target_ipv4: [u8; 4]) -> Self{
+    fn new(src_mac: [u8; 6], target_ipv4: [u8; 4]) -> Self{
         Self{
             htype: [0, 1],
             ptype: [8, 0],
             hlen:  0x06,
             plen:  0x04,
             oper:  [0, 1],
-            sha:  nic.mac,
+            sha:  src_mac,
             spa:  [192,168,1,101], // Hard coded TODO
             tha:  [0xFF; 6],
             tpa:  target_ipv4,
         }
     }
 
-    // pub fn who_has(nic: &NetworkCard, target_ipv4: [u8; 4]) -> u16 {
+    /// This function sends an arp request to find the Target MAC for a given IP
+    pub fn who_has(ns: &NetworkStack, target_ipv4: [u8; 4]) {
 
-    // }
+        let mut buf = [0u8; MTU];
+        
+        let arp = Arp::new(ns.nic.mac, target_ipv4);
+        let len = arp.serialise(&mut buf);
+
+        ns.nic.send(&buf, len)
+    }
 }
 
-impl super::Serialise for Arp{
-    fn serialise(&self, buf: &mut [u8]) -> u16 {
+impl Serialise for Arp{
+    fn serialise(&self, buf: &mut [u8]) -> usize {
 
         // Create an ethernet header
         let eth = super::ethernet::Ethernet::new(
@@ -57,7 +69,7 @@ impl super::Serialise for Arp{
         );
         eth.serialise(buf);
 
-        buf[14..16].copy_from_slice(&self.htype);
+        buf[ETHERNET_LEN..16].copy_from_slice(&self.htype);
         buf[16..18].copy_from_slice(&self.ptype);
         buf[18] = self.hlen;
         buf[19] = self.plen;
@@ -67,7 +79,7 @@ impl super::Serialise for Arp{
         buf[32..38].copy_from_slice(&self.tha);
         buf[38..42].copy_from_slice(&self.tpa);
 
-        42
+        ARP_LEN
     }
 }
 

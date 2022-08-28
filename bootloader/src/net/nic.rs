@@ -177,7 +177,7 @@ impl NetworkCard{
     }
     /// This function will be able to send packets and will be exposed
     /// We currently only support one descriptor in the buffer
-    pub fn send(&self, buf: &[u8; MTU], len: u16) {
+    pub fn send(&self, buf: &[u8; MTU], len: usize) {
         // 48 is the minimum packet size 
         let len = if len < 48 { 48 } else { len };
         
@@ -203,7 +203,7 @@ impl NetworkCard{
 
             // The len to send on the wire, this allows us to give it a buffer 
             // of any size then only send the len we have chosen
-            tdesc.len = len;
+            tdesc.len = len as u16;
             // Sets the command for End of Packet | Insert FCS/CRC | Enable Report Status
             tdesc.cmd = (1 << 3) | (1 << 1) | 1;
             // Writes out modified descriptor to the memory location of the descriptor

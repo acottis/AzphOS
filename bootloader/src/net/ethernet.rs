@@ -2,7 +2,7 @@
 use super::Serialise;
 
 /// Ethernet header is always the same len
-const ETHERNET_LEN: u16 = 14;
+pub const ETHERNET_LEN: usize = 14;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Ethernet{
@@ -13,7 +13,7 @@ pub struct Ethernet{
 
 impl Ethernet{
     /// Creates a representation of an ethernet header
-    pub fn new(dst_mac: [u8; 6], src_mac: [u8; 6], ethertype: [u8; 2]) -> Self{
+    pub fn new(dst_mac: [u8; 6], src_mac: [u8; 6], ethertype: [u8; 2]) -> Self {
         Self{
             dst_mac,
             src_mac,
@@ -23,7 +23,7 @@ impl Ethernet{
 }
 
 impl Serialise for Ethernet{
-    fn serialise(&self, buf: &mut [u8]) -> u16 {
+    fn serialise(&self, buf: &mut [u8]) -> usize {
         buf[..6].copy_from_slice(&self.dst_mac);
         buf[6..12].copy_from_slice(&self.src_mac);
         buf[12..14].copy_from_slice(&self.ethertype);
