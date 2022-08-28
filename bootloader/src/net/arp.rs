@@ -60,7 +60,6 @@ impl Arp{
 
 impl Serialise for Arp{
     fn serialise(&self, buf: &mut [u8]) -> usize {
-
         // Create an ethernet header
         let eth = super::ethernet::Ethernet::new(
             [0xff,0xff,0xff,0xff,0xff,0xff], 
@@ -80,6 +79,38 @@ impl Serialise for Arp{
         buf[38..42].copy_from_slice(&self.tpa);
 
         ARP_LEN
+    }
+
+    fn deserialise(buf: &[u8]) -> Self {
+        let mut htype = [0u8; 2];        
+        let mut ptype = [0u8; 2];   
+        let hlen = buf[18];     
+        let plen = buf[19];     
+        let mut oper = [0u8; 2];
+        let mut sha = [0u8; 6]; 
+        let mut spa = [0u8; 4]; 
+        let mut tha = [0u8; 6]; 
+        let mut tpa = [0u8; 4];
+        
+        htype.copy_from_slice(&buf[ETHERNET_LEN..16]);
+        ptype.copy_from_slice(&buf[16..18]);
+        oper.copy_from_slice(&buf[20..22]);
+        sha.copy_from_slice(&buf[22..28]);
+        spa.copy_from_slice(&buf[28..32]);
+        tha.copy_from_slice(&buf[32..38]);
+        tpa.copy_from_slice(&buf[38..42]);
+
+        Self { 
+            htype,
+            ptype,
+            hlen,
+            plen, 
+            oper, 
+            sha, 
+            spa, 
+            tha, 
+            tpa, 
+        }
     }
 }
 

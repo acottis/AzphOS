@@ -6,7 +6,8 @@ mod dhcp;
 mod ethernet;
 
 use arp::Arp;
-use ethernet::ETHERNET_LEN;
+use ethernet::{Ethernet, ETHERNET_LEN};
+use packet::Packet;
 
 /// Maximum packet size we deal with, this is a mut ref to a buffer we pass around to create 
 /// our raw packet for sending to the NIC
@@ -34,7 +35,10 @@ impl NetworkStack {
     pub fn update(&self) {
 
         Arp::who_has(&self, [192,168,10,1]);
-        
+
+        loop {
+            self.nic.receive();
+        }
 
     }
 
@@ -50,4 +54,6 @@ impl NetworkStack {
 /// structs into packet buffers when can send to the NIC
 trait Serialise{
     fn serialise(&self, buf: &mut [u8]) -> usize;
+
+    fn deserialise(buf: &[u8]) -> Self;
 }

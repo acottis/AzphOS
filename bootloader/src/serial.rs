@@ -66,6 +66,7 @@ impl core::fmt::Write for SerialWriter{
 macro_rules! serial_print {
     ($($arg:tt)*) => {
         let _ = core::fmt::Write::write_fmt(
-            &mut $crate::serial::SerialWriter, format_args!($($arg)*));
+            &mut $crate::serial::SerialWriter, format_args!($($arg)*)
+        ).unwrap();
     }
 }

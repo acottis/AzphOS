@@ -2,8 +2,8 @@
 //! to the rest of the OS our main entry points from our OS to our nic are [NetworkCard::send] and [NetworkCard::recieve]
 use crate::{serial_print};
 use crate::error::{Result, Error};
-use super::packet::Packet;
 use super::MTU;
+use super::Packet;
 
 // Supported Nics
 // E1000 Qemu Versions
@@ -28,7 +28,7 @@ const REG_RAH: u32 = 0x5404;
 
 // Recieve Addresses Base addresses
 const RECEIVE_DESC_BASE_ADDRESS: u64 = 0x800000;
-const RECEIVE_DESC_BUF_LENGTH: u32 = 32;
+const RECEIVE_DESC_BUF_LENGTH: u32 = 16;
 const RECEIVE_BASE_BUFFER_ADDRESS: u64 = 0x880000;
 const RECEIVE_QUEUE_HEAD_START: u32 = 20;
 const RECEIVE_QUEUE_TAIL_START: u32 = 4;
@@ -193,7 +193,8 @@ impl NetworkCard{
             }
             // Write the packet to the buffer
             core::ptr::write(tdesc.buffer as *mut [u8; MTU], *buf);
-            serial_print!("Tdesc Status {}\nBuf: {:X?}\n", tdesc.status, *(tdesc.buffer as *const [u8; 42]));
+            
+            //serial_print!("Tdesc Status {}\nBuf: {:X?}\n", tdesc.status, *(tdesc.buffer as *const [u8; 42]));
             //serial_print!("{:?}\n", tdesc);
             // serial_print!("Sent Packet! H: {}, T: {}, Pos: {}, {:X?}\n", 
             //     self.read(REG_TDH),
@@ -213,34 +214,34 @@ impl NetworkCard{
         }
     }
     /// This function processes the emails in buffer of buffer size [RECEIVE_DESC_BUF_LENGTH]
-    pub fn receive(&self) -> [Option<Packet>; 32] {
-        let mut received_packets: [Option<Packet>; 32] = [Default::default(); 32];
+    pub fn receive(&self) -> [Option<Packet>; RECEIVE_DESC_BUF_LENGTH as usize] {
+        let mut received_packets: [Option<Packet>; RECEIVE_DESC_BUF_LENGTH as usize] = [Default::default(); RECEIVE_DESC_BUF_LENGTH as usize];
         let mut packet_counter = 0;
         let rdesc_base_ptr = RECEIVE_DESC_BASE_ADDRESS as *mut Rdesc;
         for offset in 0..RECEIVE_DESC_BUF_LENGTH as isize{
             unsafe{ 
                 // Get the current Recieve Descriptor from our allocated memory and put it on the stack
-                let mut rdesc: Rdesc = core::ptr::read_volatile(rdesc_base_ptr.offset(offset));
+                let mut rdesc: Rdesc = core::ptr::read(rdesc_base_ptr.offset(offset));
                 
-                // crate::serial_print!("Recieved Packet: {:X?}\n", rdesc);
                 //A non zero status means a packet has arrived and is ready for processing
                 if rdesc.status != 0{
-                    let buf = core::ptr::read(rdesc.buffer as *mut &[u8]);
-                    
-                    // TODO!!!!!!!!!!!!!!!!!!!
-                    Packet::parse(buf, rdesc.len);
-                    // // We only care about IPv4/ARP this will drop all the others without processing as when detected
-                    // // they return [None]
-                    // received_packets[packet_counter] = Some(p);
-                    // packet_counter += 1;
+                    // Read the data from the packet
+                    let buf: [u8; MTU] = core::ptr::read(rdesc.buffer as *const [u8; MTU]);
+
+                    // Try to parse the packet and add it to the array to hand back to the OS
+                    let packet = Packet::parse(&buf, rdesc.len as usize);
+                    crate::serial_print!("{:X?}\n", packet);
+                    received_packets[packet_counter] = packet;
+                    packet_counter += 1;
 
                     // We have processed the packet and set status to 0 to indicate the buffer can overwrite
                     rdesc.status = 0;
                     rdesc.len = 0;
+
                     // Write modified rdesc pack to memory
-                    core::ptr::write_volatile(rdesc_base_ptr.offset(offset), rdesc);
+                    core::ptr::write(rdesc_base_ptr.offset(offset), rdesc);
                     // Adds one to the tail to let the NIC know we are done with that one
-                    self.write(REG_RDT, (self.read(REG_RDT) + 1) % 32)       
+                    self.write(REG_RDT, (self.read(REG_RDT) + 1) % RECEIVE_DESC_BUF_LENGTH)       
                 }
             }
         } 

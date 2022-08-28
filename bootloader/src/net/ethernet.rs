@@ -8,7 +8,7 @@ pub const ETHERNET_LEN: usize = 14;
 pub struct Ethernet{
     dst_mac: [u8; 6],
     src_mac: [u8; 6],
-    ethertype: [u8; 2],
+    pub ethertype: [u8; 2],
 }
 
 impl Ethernet{
@@ -29,5 +29,19 @@ impl Serialise for Ethernet{
         buf[12..14].copy_from_slice(&self.ethertype);
 
         ETHERNET_LEN
+    }
+
+    fn deserialise(buf: &[u8]) -> Self {
+        let mut src_mac = [0u8; 6];
+        let mut dst_mac = [0u8; 6];
+        let mut ethertype = [0u8; 2];
+        src_mac.copy_from_slice(&buf[..6]);
+        dst_mac.copy_from_slice(&buf[6..12]);
+        ethertype.copy_from_slice(&buf[12..14]);
+        Self { 
+            dst_mac, 
+            src_mac, 
+            ethertype
+        }
     }
 }
