@@ -17,10 +17,10 @@
 //     xid: [u8;4],
 //     secs: [u8; 2],
 //     flags: [u8; 2],
-//     ciaddr: [u8; 4], 
+//     ciaddr: [u8; 4],
 //     yiaddr: [u8; 4],
-//     siaddr: [u8; 4], 
-//     giaddr: [u8; 4], 
+//     siaddr: [u8; 4],
+//     giaddr: [u8; 4],
 //     chaddr: [u8; 6],
 //     sname: [u8; 64],
 //     file: [u8; 128],
@@ -52,7 +52,7 @@
 //         buf[44..108].copy_from_slice(&[0u8; 64]); // Unused
 //         buf[108..236].copy_from_slice(&[0u8; 128]); // Unused
 //         buf[236..240].copy_from_slice(&DHCP_MAGIC); // DHCP Magic bytes
-        
+
 //         240
 //     }
 // }

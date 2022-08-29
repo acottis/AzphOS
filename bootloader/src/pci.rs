@@ -14,11 +14,11 @@ const PCI_DEVICE_LEN: u32 = 32;
 const PCI_FUNCTION_LEN: u32 = 8;
 
 /// This struct holds the data for a header type 0x0 PCI Device
-/// 
+///
 #[derive(Debug, Copy, Clone)]
 #[repr(C)]
 #[allow(dead_code)]
-struct Header{
+struct Header {
     vendor_id: u16,
     device_id: u16,
     command: u16,
@@ -49,54 +49,51 @@ struct Header{
     max_latency: u8,
 }
 
-impl Header{
+impl Header {
     // Goes through the PCI 128-bits and parses out the data
-    fn new(bus: u32, device: u32, function: u32) -> Self{
-
+    fn new(bus: u32, device: u32, function: u32) -> Self {
         let mut raw_device = [0u32; PCI_REGISTER_LEN];
-        for (i,register )in raw_device.iter_mut().enumerate(){
-            *register = pci_read_32(bus, device, function, i*4);
+        for (i, register) in raw_device.iter_mut().enumerate() {
+            *register = pci_read_32(bus, device, function, i * 4);
         }
 
-        unsafe{
-            core::ptr::read(raw_device.as_ptr() as *const Self)
-        }
+        unsafe { core::ptr::read(raw_device.as_ptr() as *const Self) }
     }
 }
 
 /// Struct that holds an Pci [`Device`] that we can expose to other modules
 #[allow(dead_code)]
 #[derive(Debug, Copy, Clone)]
-pub struct Device{
+pub struct Device {
     header: Header,
     bus: u32,
     device: u32,
     function: u32,
 }
 
-impl Device{
+impl Device {
     /// Creates a new Device when scanned in the PCI memory
     fn new(bus: u32, device: u32, function: u32) -> Self {
         Self {
             header: Header::new(bus, device, function),
             bus,
             device,
-            function
+            function,
         }
     }
     /// Returns an array of the BAR addresses to a driver
-    pub fn base_mem_addrs(&self) -> [u32; 6]{
+    pub fn base_mem_addrs(&self) -> [u32; 6] {
         [
             self.header.base_addr_0,
             self.header.base_addr_1,
             self.header.base_addr_2,
             self.header.base_addr_3,
             self.header.base_addr_4,
-            self.header.base_addr_5
+            self.header.base_addr_5,
         ]
     }
     /// Returns the [`device_id`] and [`vendor_id`] for validation that we support this device
-    pub fn did_vid(&self) -> (u16, u16){
+    pub fn did_vid(&self) -> (u16, u16) {
         (self.header.device_id, self.header.vendor_id)
     }
 }
@@ -111,8 +108,8 @@ pub fn init() -> Devices {
     for bus in 0..PCI_BUS_LEN {
         for device in 0..PCI_DEVICE_LEN {
             for function in 0..PCI_FUNCTION_LEN {
-                if pci_read_32(bus, device, function, 0) == !0 { 
-                    continue 
+                if pci_read_32(bus, device, function, 0) == !0 {
+                    continue;
                 }
                 pci_devices.0[found] = Some(Device::new(bus, device, function));
                 found += 1;
@@ -122,28 +119,29 @@ pub fn init() -> Devices {
     pci_devices
 }
 
-impl Devices{
+impl Devices {
     /// Returns the first NIC it finds of type [`Some`] [`Device`] and [`None`] if no PCI NIC is found
-    /// 
-    pub fn get_nic(&self) -> Option<Device>{
-        self.0.iter().find_map(| &device |{
-            match device{
-                Some(d) => {
-                    if (d.header.class_code == PCI_CLASS_CODE_NETWORK) && (d.header.subclass == PCI_SUBCLASS_CODE_ETHERNET){
-                        Some(d)
-                    }else{
-                        None
-                    }
-                },
-                None => None,
+    ///
+    pub fn get_nic(&self) -> Option<Device> {
+        self.0.iter().find_map(|&device| match device {
+            Some(d) => {
+                if (d.header.class_code == PCI_CLASS_CODE_NETWORK)
+                    && (d.header.subclass == PCI_SUBCLASS_CODE_ETHERNET)
+                {
+                    Some(d)
+                } else {
+                    None
+                }
             }
+            None => None,
         })
     }
 }
 
 /// This function reads a dword (u32) from a PCI device address
-fn pci_read_32(bus: u32, device: u32, function: u32, offset: usize) -> u32{
-    let address: u32 = PCI_ENABLE_BIT | (bus << 16) | (device << 11) | (function << 8) | (offset & 0xFE) as u32;
+fn pci_read_32(bus: u32, device: u32, function: u32, offset: usize) -> u32 {
+    let address: u32 =
+        PCI_ENABLE_BIT | (bus << 16) | (device << 11) | (function << 8) | (offset & 0xFE) as u32;
     cpu::out32(PCI_CONFIG_ADDRESS, address);
     cpu::in32(PCI_CONFIG_DATA)
 }

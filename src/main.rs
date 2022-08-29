@@ -3,9 +3,9 @@
 type Result<T> = std::result::Result<T, self::Error>;
 
 /// Custom Error Enum for better Error reporting
-/// 
+///
 #[derive(Debug)]
-enum Error{
+enum Error {
     CouldNotReadSectionData,
     PENotFound(std::io::Error),
     CargoMissing(std::io::Error),
@@ -24,11 +24,11 @@ enum Error{
 }
 
 /// Main program loop
-/// 
-fn main(){
+///
+fn main() {
     const FLATTENED_IMAGE_PATH: &str = "bootloader/build/bootloader.flat";
     const BOOTLOADER_EXE: &str = "bootloader/target/i586-pc-windows-msvc/release/bootloader.exe";
-    
+
     // This function compiles the bootloader that we will use as a stage0
     build_bootloader().expect("Failed to build bootloader");
 
@@ -38,88 +38,103 @@ fn main(){
     // Get a flattened version of the PE
     let flattened_bytes = pe.flatten().expect("Could not flatten PE");
     let rust_len = &flattened_bytes.len();
-    
+
     // Write the flat PE to a file
-    write_flattened_image(&flattened_bytes, FLATTENED_IMAGE_PATH).expect("Could not write image to disk");
-    println!("Image Base at: {:#X}, Entry Point in PE file is: {:#X}", pe.image_base, pe.entry_point);
-    
+    write_flattened_image(&flattened_bytes, FLATTENED_IMAGE_PATH)
+        .expect("Could not write image to disk");
+    println!(
+        "Image Base at: {:#X}, Entry Point in PE file is: {:#X}",
+        pe.image_base, pe.entry_point
+    );
+
     // Link the PE to the stage0.asm bootloader and set the entry point to match the PE first instruction
     build_asm(pe.image_base + pe.entry_point).expect("Cannot assemble stage0.asm");
     println!("PE Written to: {}", FLATTENED_IMAGE_PATH);
-    
-    // Tells the user how much space they have left, does not include the stag0.asm
-    println!("Bootloader is {:#X} out of {:#X}, {:.2}% used", rust_len, 0x8000, (*rust_len as f32/0x8000 as f32)*100f32 );
 
+    // Tells the user how much space they have left, does not include the stag0.asm
+    println!(
+        "Bootloader is {:#X} out of {:#X}, {:.2}% used",
+        rust_len,
+        0x8000,
+        (*rust_len as f32 / 0x8000 as f32) * 100f32
+    );
 }
 /// This functions writes the flattened PE to disk
-/// 
-fn write_flattened_image(bytes: &[u8], path :&str) -> Result<()>{
+///
+fn write_flattened_image(bytes: &[u8], path: &str) -> Result<()> {
     use std::io::Write;
     let mut output = std::fs::File::create(path).map_err(Error::CantCreateBinary)?;
     output.write(bytes).map_err(Error::CantCreateBinary)?;
     Ok(())
 }
 /// This function compiles the assembly code with the entry point found in the PE
-/// 
-fn build_asm(entry: u32) -> Result<()>{
+///
+fn build_asm(entry: u32) -> Result<()> {
     use std::process::Command;
 
-    let res = Command::new("nasm").args(
-        ["bootloader/asm/stage0.asm", 
-        "-f", 
-        "bin",
-        &format!("-Dentry_point={:#X}", entry),
-        "-o", 
-        "bootloader/build/stage0.bin"]
-        ).output().map_err(Error::NasmMissing)?;
+    let res = Command::new("nasm")
+        .args([
+            "bootloader/asm/stage0.asm",
+            "-f",
+            "bin",
+            &format!("-Dentry_point={:#X}", entry),
+            "-o",
+            "bootloader/build/stage0.bin",
+        ])
+        .output()
+        .map_err(Error::NasmMissing)?;
 
-    match &res.status.code(){
+    match &res.status.code() {
         Some(0) => {
             println!("Bootloader: Nasm sucess, rust entry point: {:#X}", entry);
             Ok(())
-        },
+        }
         Some(_) => {
             let stderr = String::from_utf8(res.stderr).map_err(Error::CantConvertToUtf)?;
             Err(Error::NasmBuildFailed(stderr))
-        },
+        }
         None => Err(Error::CommandDidNotComplete),
     }
- }
+}
 /// This function comiples the bootloader in the subfolder and returns an error if it fails
 ///
-fn build_bootloader() -> Result<()>{
+fn build_bootloader() -> Result<()> {
     use std::process::Command;
 
-    let res = Command::new("cargo").args(["build", "--release"]).current_dir("bootloader").output().map_err(Error::CargoMissing)?;
+    let res = Command::new("cargo")
+        .args(["build", "--release"])
+        .current_dir("bootloader")
+        .output()
+        .map_err(Error::CargoMissing)?;
 
-    match &res.status.code(){
+    match &res.status.code() {
         Some(0) => {
             println!("Bootloader: Cargo Build Sucessful");
             Ok(())
-        },
+        }
         Some(_) => {
             let stderr = String::from_utf8(res.stderr).map_err(Error::CantConvertToUtf)?;
             Err(Error::CargoBuildFailed(stderr))
-        },
+        }
         None => Err(Error::CommandDidNotComplete),
     }
 }
 
 /// Struct for storing information we consume from the PE and also contains the raw bytes
-/// 
+///
 #[derive(Debug)]
-struct Pe{
+struct Pe {
     entry_point: u32,
     image_base: u32,
     sections: Vec<Section>,
-    bytes: Vec<u8>
+    bytes: Vec<u8>,
 }
 
-impl Pe{
+impl Pe {
     /// Takes the ref to a path and parses the PE header
     /// [https://docs.microsoft.com/en-gb/windows/win32/debug/pe-format?redirectedfrom=MSDN#ms-dos-stub-image-only](https://docs.microsoft.com/en-gb/windows/win32/debug/pe-format?redirectedfrom=MSDN#ms-dos-stub-image-only)
-    /// 
-    fn parse(path: impl AsRef<std::path::Path>) -> Result<Self>{
+    ///
+    fn parse(path: impl AsRef<std::path::Path>) -> Result<Self> {
         use std::io::Read;
         use std::io::{Seek, SeekFrom};
         const POINTER_TO_PE_HEADER_OFFSET: u64 = 0x3C;
@@ -137,14 +152,18 @@ impl Pe{
         }
 
         // Skip ahead to PE Header Pointer
-        reader.seek(SeekFrom::Start(POINTER_TO_PE_HEADER_OFFSET)).map_err(Error::Seek)?;
-    
+        reader
+            .seek(SeekFrom::Start(POINTER_TO_PE_HEADER_OFFSET))
+            .map_err(Error::Seek)?;
+
         // Get the start location of the header
-        let header_pointer = consume!(reader, u32,"Pointer To PE Header");
+        let header_pointer = consume!(reader, u32, "Pointer To PE Header");
 
         // Go to header start and find PE Magic bytes
-        reader.seek(SeekFrom::Start(header_pointer as u64)).map_err(Error::Seek)?;
-        if consume!(reader, u32, "PE Magic") != PE_SIGNITURE{
+        reader
+            .seek(SeekFrom::Start(header_pointer as u64))
+            .map_err(Error::Seek)?;
+        if consume!(reader, u32, "PE Magic") != PE_SIGNITURE {
             return Err(Error::BadPESigniture);
         }
 
@@ -187,7 +206,7 @@ impl Pe{
 
         // Get SizeOfUnInitializedData
         consume!(reader, u32, "Size of the uninitialized data section (.BSS)");
-        
+
         // Get EntryPoint Address
         let entry_point = consume!(reader, u32, "Entry Point");
 
@@ -202,14 +221,19 @@ impl Pe{
 
         // Missing the fields above, do I even need?
         // Skip to Section tabele
-        reader.seek(SeekFrom::Start((header_pointer + COFF_HEADER_SIZE + optional_header_size as u32) as u64)).map_err(Error::Seek)?;
+        reader
+            .seek(SeekFrom::Start(
+                (header_pointer + COFF_HEADER_SIZE + optional_header_size as u32) as u64,
+            ))
+            .map_err(Error::Seek)?;
 
         // Store the section tables in a Vec
         let mut sections: Vec<Section> = Vec::new();
 
-        for _ in 0..num_of_sections{
-            let name = String::from_utf8(consume!(reader, u64, "Section Name")
-                .to_le_bytes().to_vec()).map_err(Error::CantConvertToUtf)?;
+        for _ in 0..num_of_sections {
+            let name =
+                String::from_utf8(consume!(reader, u64, "Section Name").to_le_bytes().to_vec())
+                    .map_err(Error::CantConvertToUtf)?;
             let virtual_size = consume!(reader, u32, "Virtual Size");
             let virtual_addr = consume!(reader, u32, "Virtual Address");
             let sizeof_rawdata = consume!(reader, u32, "Size Of Raw Data");
@@ -230,7 +254,7 @@ impl Pe{
                 pointerto_linenumbers,
                 num_of_relocations,
                 num_of_linenumbers,
-                characteristics
+                characteristics,
             });
         }
 
@@ -247,19 +271,20 @@ impl Pe{
     }
     /// Converts the sections into a flat binary we can append to our stage0.asm
     ///
-    fn flatten(&self) -> Result<Vec<u8>>{
+    fn flatten(&self) -> Result<Vec<u8>> {
         println!("{:#X?}", self.sections);
         // Creating our small binary
         let mut program: Vec<u8> = vec![];
 
-        for section in &self.sections{
-
+        for section in &self.sections {
             let start = section.pointerto_rawdata as usize;
             let end = start + section.virtual_size as usize;
 
             let bytes = if start != 0 {
-                self.bytes.get(start..end).ok_or(Error::CouldNotReadSectionData)?
-            }else{
+                self.bytes
+                    .get(start..end)
+                    .ok_or(Error::CouldNotReadSectionData)?
+            } else {
                 &[0u8; 0]
             };
             //let to_copy: usize = std::cmp::min(section.virtual_size, section.sizeof_rawdata) as usize;
@@ -278,46 +303,43 @@ macro_rules! consume {
     ($reader:expr, $ty:ty, $field:expr) => {{
         let mut buf = [0u8; std::mem::size_of::<$ty>()];
         $reader.read_exact(&mut buf).map_err(Error::Consume)?;
-        // println!("{}: LE: {:#X}, BE: {:#X}", 
-        //     $field, 
+        // println!("{}: LE: {:#X}, BE: {:#X}",
+        //     $field,
         //     <$ty>::from_le_bytes(buf),
         //     <$ty>::from_be_bytes(buf),
         // );
         <$ty>::from_le_bytes(buf)
-    }}
+    }};
 }
 
 /// Machine Type
 /// [https://docs.microsoft.com/en-gb/windows/win32/debug/pe-format?redirectedfrom=MSDN#machine-types](https://docs.microsoft.com/en-gb/windows/win32/debug/pe-format?redirectedfrom=MSDN#machine-types)
-/// 
+///
 #[repr(u16)]
-enum MachineType{
+enum MachineType {
     I386,
 }
 
-impl TryFrom<u16> for MachineType{
-
+impl TryFrom<u16> for MachineType {
     type Error = self::Error;
 
-    fn try_from(bytes: u16) -> Result<MachineType>{
+    fn try_from(bytes: u16) -> Result<MachineType> {
         Ok(match bytes {
             0x14c => Self::I386,
-            _ => return Err(Error::UnsupportedMachineType
-                (bytes)),
+            _ => return Err(Error::UnsupportedMachineType(bytes)),
         })
     }
 }
 
 #[repr(u16)]
-enum OptionalHeaderMagic{
+enum OptionalHeaderMagic {
     Pe32Plus,
 }
 
-impl TryFrom<u16> for OptionalHeaderMagic{
-
+impl TryFrom<u16> for OptionalHeaderMagic {
     type Error = self::Error;
 
-    fn try_from(bytes: u16) -> Result<OptionalHeaderMagic>{
+    fn try_from(bytes: u16) -> Result<OptionalHeaderMagic> {
         Ok(match bytes {
             0x10B => Self::Pe32Plus,
             _ => return Err(Error::UnsupportedOptionalHeaderMagic(bytes)),
@@ -326,10 +348,10 @@ impl TryFrom<u16> for OptionalHeaderMagic{
 }
 
 /// https://docs.microsoft.com/en-gb/windows/win32/debug/pe-format?redirectedfrom=MSDN#characteristics
-/// 
+///
 #[repr(u16)]
 #[derive(Debug)]
-enum Characteristics{
+enum Characteristics {
     RelocsStripped = 0x0001,
     ExecutableImage = 0x0002,
     LineNumsStripped = 0x0004,
@@ -348,8 +370,7 @@ enum Characteristics{
     BytesReversedHi = 0x8000,
 }
 
-impl Characteristics{
-
+impl Characteristics {
     fn get(bytes: u16) -> Result<Vec<Characteristics>> {
         let mut characteristics = Vec::new();
         if bytes & Self::RelocsStripped as u16 == Self::RelocsStripped as u16 {
@@ -393,21 +414,20 @@ impl Characteristics{
         }
         if bytes & Self::Dll as u16 == Self::Dll as u16 {
             characteristics.push(Self::Dll)
-        }        
+        }
         if bytes & Self::UpSystemOnly as u16 == Self::UpSystemOnly as u16 {
             characteristics.push(Self::UpSystemOnly)
-        }        
+        }
         if bytes & Self::BytesReversedHi as u16 == Self::BytesReversedHi as u16 {
             characteristics.push(Self::BytesReversedHi)
         }
         Ok(characteristics)
     }
-
 }
 
 #[allow(dead_code)]
 #[derive(Debug)]
-struct Section{
+struct Section {
     name: String,
     virtual_size: u32,
     virtual_addr: u32,
@@ -417,5 +437,5 @@ struct Section{
     pointerto_linenumbers: u32,
     num_of_relocations: u16,
     num_of_linenumbers: u16,
-    characteristics: u32
+    characteristics: u32,
 }

@@ -4,11 +4,11 @@
 mod core_reqs;
 //mod display;
 mod cpu;
-mod serial;
-mod time;
+mod error;
 mod net;
 mod pci;
-mod error;
+mod serial;
+mod time;
 
 // #[cfg(not(test))] is a fix for a Rust analyzer bug
 #[cfg(not(test))]
