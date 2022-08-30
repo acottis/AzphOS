@@ -1,13 +1,15 @@
 //! We manage all things network in this module, this exposes the networking functionality to the other OS use cases
 mod arp;
-mod dhcp;
 mod ethernet;
 mod nic;
 mod packet;
+mod ip;
 
 use arp::Arp;
 use ethernet::{Ethernet, ETHERNET_LEN};
 use packet::{EtherType, Packet};
+use ip::IPv4;
+use ip::dhcp::Dhcp;
 
 /// Maximum packet size we deal with, this is a mut ref to a buffer we pass around to create
 /// our raw packet for sending to the NIC
@@ -16,15 +18,37 @@ const MTU: usize = 1500;
 pub struct NetworkStack {
     nic: nic::NetworkCard,
     arp_table: [([u8; 6], [u8; 4]); 10],
+    ip_addr: [u8; 4],
 }
 
 impl NetworkStack {
+    /// We start our network stack, we create a NIC if we have a valid driver available
+    /// Then we look for an IPv4 Address
     pub fn init() -> Option<Self> {
         match nic::init() {
-            Ok(nic) => Some(Self {
-                nic,
-                arp_table: Default::default(),
-            }),
+            Ok(nic) => {
+                // Once we have a NIC we can use, we need an IPv4 Address
+                Dhcp::discover(&nic);
+
+                // let packets = nic.receive();
+                // for packet in packets {
+                //     if let Some(packet) = packet {
+                //         match packet.ether_type {
+                //             EtherType::IPv4(ipv4) => {
+                //                 // Check for DHCP
+                //             }
+                //             _ => {}
+                //         }
+                //     }
+                // }
+            
+                Some(Self {
+                    nic,
+                    arp_table: Default::default(),
+                    // Hard coding for now!!!!!
+                    ip_addr: [192,168,10,101],
+                })
+            },
             Err(e) => {
                 crate::serial_print!("Cannot init network: {:X?}", e);
                 None
@@ -32,39 +56,21 @@ impl NetworkStack {
         }
     }
     /// This will process all network related tasks during the main OS loop
-    pub fn update(&self, asked: &mut bool) {
-        // This is ugly and for testing, will be removed
-        let target = if *asked == false {
-            *asked = true;
-            Some([192, 168, 10, 1])
-        } else {
-            None
-        };
-
-        // We call this every network update to check if anything has changed relating to Arp
-        // such as a request for more IP addresses or someone on the network wants us to anounce our
-        // IP address
-        Arp::update(&self, target);
-
+    pub fn update(&self) {
         let packets = self.nic.receive();
         for packet in packets {
             if let Some(packet) = packet {
                 match packet.ether_type {
                     EtherType::Arp(arp) => {
-                        crate::serial_print!("{arp:?}\n");
+                        // If we recieve an Arp we process it, replying to requests and updating
+                        // the arp table
+                        arp.update(&self);
                     }
                     _ => {}
                 }
             }
         }
-        // If packets contains a ARP packet
-        // Arp::update_table() | Arp::AnnouceIP
     }
-
-    // pub fn dhcp_init(&self){
-    //     //let res = Dhcp::discover();
-
-    // }
 }
 
 /// This trait will be responsible for turning our human readable

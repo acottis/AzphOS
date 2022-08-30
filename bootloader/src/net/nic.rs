@@ -3,7 +3,6 @@
 use super::Packet;
 use super::MTU;
 use crate::error::{Error, Result};
-use crate::serial_print;
 
 // Supported Nics
 // E1000 Qemu Versions
@@ -35,7 +34,7 @@ const RECEIVE_QUEUE_TAIL_START: u32 = 4;
 
 // Transmit base addresses
 const TRANSMIT_DESC_BASE_ADDRESS: u64 = 0x900000;
-const TRANSMIT_DESC_BUF_LENGTH: u32 = 32;
+const TRANSMIT_DESC_BUF_LENGTH: u32 = 16;
 const TRANSMIT_BASE_BUFFER_ADDRESS: u64 = 0x980000;
 const TRANSMIT_QUEUE_HEAD_START: u32 = 0;
 const TRANSMIT_QUEUE_TAIL_START: u32 = 0;
@@ -197,8 +196,6 @@ impl NetworkCard {
             // Write the packet to the buffer
             core::ptr::write(tdesc.buffer as *mut [u8; MTU], *buf);
 
-            //serial_print!("Tdesc Status {}\nBuf: {:X?}\n", tdesc.status, *(tdesc.buffer as *const [u8; 42]));
-            //serial_print!("{:?}\n", tdesc);
             // serial_print!("Sent Packet! H: {}, T: {}, Pos: {}, {:X?}\n",
             //     self.read(REG_TDH),
             //     self.read(REG_TDT),
@@ -218,10 +215,12 @@ impl NetworkCard {
     }
     /// This function processes the emails in buffer of buffer size [RECEIVE_DESC_BUF_LENGTH]
     pub fn receive(&self) -> [Option<Packet>; RECEIVE_DESC_BUF_LENGTH as usize] {
+        
         let mut received_packets: [Option<Packet>; RECEIVE_DESC_BUF_LENGTH as usize] =
             [Default::default(); RECEIVE_DESC_BUF_LENGTH as usize];
         let mut packet_counter = 0;
         let rdesc_base_ptr = RECEIVE_DESC_BASE_ADDRESS as *mut Rdesc;
+
         for offset in 0..RECEIVE_DESC_BUF_LENGTH as isize {
             unsafe {
                 // Get the current Recieve Descriptor from our allocated memory and put it on the stack
@@ -234,7 +233,7 @@ impl NetworkCard {
 
                     // Try to parse the packet and add it to the array to hand back to the OS
                     let packet = Packet::parse(&buf, rdesc.len as usize);
-                    crate::serial_print!("{:X?}\n", packet);
+                    //crate::serial_print!("{:X?}\n", packet);
                     received_packets[packet_counter] = packet;
                     packet_counter += 1;
 
@@ -251,8 +250,6 @@ impl NetworkCard {
         }
         received_packets
     }
-    // Inbuilt functionality to generate arp broadcast
-    //pub fn arp()
 }
 /// Main entry point to net that sets up the drivers
 ///

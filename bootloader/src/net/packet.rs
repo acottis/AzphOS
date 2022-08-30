@@ -1,8 +1,8 @@
-use crate::net::Serialise;
-
+use super::Serialise;
 use super::Arp;
 use super::Ethernet;
 use super::MTU;
+use super::IPv4;
 
 #[derive(Clone, Copy, Debug)]
 pub struct Packet {
@@ -35,5 +35,6 @@ impl Packet {
 #[derive(Debug, Clone, Copy)]
 pub enum EtherType {
     Arp(Arp),
+    IPv4(IPv4),
     Unknown,
 }

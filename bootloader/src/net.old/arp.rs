@@ -40,7 +40,6 @@ impl Arp{
     }
 }
 
-
 impl super::Serialise for Arp{
     fn deserialise(raw: &[u8]) -> Option<Self>{
         Some(Self {

@@ -1,4 +1,6 @@
 //! Deals with all things Arp
+use crate::serial_print;
+
 use super::NetworkStack;
 use super::Serialise;
 use super::ETHERNET_LEN;
@@ -32,16 +34,22 @@ pub struct Arp {
 
 impl Arp {
     /// Create a new arp packet
-    fn new(src_mac: [u8; 6], target_ipv4: [u8; 4]) -> Self {
+    fn new(
+        opcode: [u8;2], 
+        src_mac: [u8; 6],
+        target_mac: [u8; 6],
+        src_ipv4: [u8; 4], 
+        target_ipv4: [u8; 4]
+    ) -> Self {
         Self {
             htype: [0, 1],
             ptype: [8, 0],
             hlen: 0x06,
             plen: 0x04,
-            oper: [0, 1],
+            oper: opcode,
             sha: src_mac,
-            spa: [192, 168, 1, 101], // Hard coded TODO
-            tha: [0xFF; 6],
+            spa: src_ipv4, // Hard coded TODO
+            tha: target_mac,
             tpa: target_ipv4,
         }
     }
@@ -50,19 +58,35 @@ impl Arp {
     fn who_has(ns: &NetworkStack, target_ipv4: [u8; 4]) {
         let mut buf = [0u8; MTU];
 
-        let arp = Arp::new(ns.nic.mac, target_ipv4);
+        let arp = Arp::new([0,1], ns.nic.mac, [0xFFu8; 6], ns.ip_addr, target_ipv4);
         let len = arp.serialise(&mut buf);
 
         ns.nic.send(&buf, len)
     }
+    /// This function sends out an ARP saying we own an IP when asked
+    fn reply(&self, ns: &NetworkStack){
+        let mut buf = [0u8; MTU];
+        
+        let reply = Arp::new([0, 2], ns.nic.mac, self.sha, ns.ip_addr, self.spa);
+        let len = reply.serialise(&mut buf);
+
+        ns.nic.send(&mut buf, len)
+    }
+    /// This function updates the arp table when we recieve ARP packets
+    fn update_arp_table(&self, ns: &NetworkStack){
+        todo!()
+    }
 
     /// This function deals with any arp work required
-    pub fn update(ns: &NetworkStack, target_ipv4: Option<[u8; 4]>) -> Option<[u8; 4]> {
-        if let Some(target_ipv4) = target_ipv4 {
-            Self::who_has(ns, target_ipv4)
-        }
+    pub fn update(&self, ns: &NetworkStack)  {
 
-        None
+        // Update our arp table with any new information
+        // self.update_arp_table(ns);
+
+        // If we see a request for our IP, reply
+        if self.tpa == ns.ip_addr{
+            self.reply(ns);
+        } 
     }
 }
 
