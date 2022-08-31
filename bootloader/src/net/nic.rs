@@ -75,7 +75,7 @@ impl Rdesc {
         // Enable Broadcast Accept Mode | Set the RTCL BSIZE to 2048 |
         nic.write(
             REG_RCTL,
-            (1 << 1) | (2 << 0) | (1 << 3) | (1 << 4) | (1 << 15) | (1 << 26),
+            (1 << 0) | (1 << 1) | (1 << 3) | (1 << 4) | (1 << 15) | (1 << 26),
         );
 
         // Zero out the chosen memory location and place the memory location for the raw packets in the
@@ -215,7 +215,6 @@ impl NetworkCard {
     }
     /// This function processes the emails in buffer of buffer size [RECEIVE_DESC_BUF_LENGTH]
     pub fn receive(&self) -> [Option<Packet>; RECEIVE_DESC_BUF_LENGTH as usize] {
-        
         let mut received_packets: [Option<Packet>; RECEIVE_DESC_BUF_LENGTH as usize] =
             [Default::default(); RECEIVE_DESC_BUF_LENGTH as usize];
         let mut packet_counter = 0;
@@ -229,7 +228,10 @@ impl NetworkCard {
                 //A non zero status means a packet has arrived and is ready for processing
                 if rdesc.status != 0 {
                     // Read the data from the packet
-                    let buf = &*core::ptr::slice_from_raw_parts(rdesc.buffer as *const u8, rdesc.len as usize);
+                    let buf = &*core::ptr::slice_from_raw_parts(
+                        rdesc.buffer as *const u8,
+                        rdesc.len as usize,
+                    );
 
                     // Try to parse the packet and add it to the array to hand back to the OS
                     let packet = Packet::parse(buf, rdesc.len as usize);

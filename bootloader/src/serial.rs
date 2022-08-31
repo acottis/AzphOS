@@ -37,8 +37,8 @@ fn init() {
 fn write(bytes: &[u8]) {
     let port = unsafe { SERIALPORTS[0] };
     for byte in bytes {
-        if *byte == '\n' as u8 {
-            cpu::out8(port, '\r' as u8);
+        if *byte == b'\n' {
+            cpu::out8(port, b'\r');
         }
         cpu::out8(port, *byte);
     }

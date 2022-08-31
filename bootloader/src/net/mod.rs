@@ -1,15 +1,15 @@
 //! We manage all things network in this module, this exposes the networking functionality to the other OS use cases
 mod arp;
 mod ethernet;
+mod ip;
 mod nic;
 mod packet;
-mod ip;
 
 use arp::Arp;
 use ethernet::{Ethernet, ETHERNET_LEN};
-use packet::{EtherType, Packet};
-use ip::IPv4;
 use ip::dhcp::Dhcp;
+use ip::IPv4;
+use packet::{EtherType, Packet};
 
 /// Maximum packet size we deal with, this is a mut ref to a buffer we pass around to create
 /// our raw packet for sending to the NIC
@@ -30,25 +30,25 @@ impl NetworkStack {
                 // Once we have a NIC we can use, we need an IPv4 Address
                 Dhcp::discover(&nic);
 
-                // let packets = nic.receive();
-                // for packet in packets {
-                //     if let Some(packet) = packet {
-                //         match packet.ether_type {
-                //             EtherType::IPv4(ipv4) => {
-                //                 // Check for DHCP
-                //             }
-                //             _ => {}
-                //         }
-                //     }
-                // }
-            
+                let packets = nic.receive();
+                for packet in packets {
+                    if let Some(packet) = packet {
+                        match packet.ether_type {
+                            EtherType::IPv4(ipv4) => {
+                                // Check for DHCP
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+
                 Some(Self {
                     nic,
                     arp_table: Default::default(),
                     // Hard coding for now!!!!!
-                    ip_addr: [192,168,10,101],
+                    ip_addr: [192, 168, 10, 101],
                 })
-            },
+            }
             Err(e) => {
                 crate::serial_print!("Cannot init network: {:X?}", e);
                 None

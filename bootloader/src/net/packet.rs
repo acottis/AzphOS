@@ -1,7 +1,7 @@
-use super::Serialise;
 use super::Arp;
 use super::Ethernet;
 use super::IPv4;
+use super::Serialise;
 
 #[derive(Clone, Copy, Debug)]
 pub struct Packet {

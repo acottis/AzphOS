@@ -4,14 +4,14 @@ use super::Serialise;
 const UDP_HEADER_LEN: usize = 8;
 
 #[derive(Debug, Clone, Copy)]
-pub struct Udp{
+pub struct Udp {
     src_port: u16,
     dst_port: u16,
     pub len: u16,
     checksum: u16,
 }
 
-impl Udp{
+impl Udp {
     pub fn new(len: usize) -> Self {
         Self {
             src_port: (68 as u16),
@@ -23,7 +23,7 @@ impl Udp{
     }
 }
 
-impl Serialise for Udp{
+impl Serialise for Udp {
     fn serialise(&self, buf: &mut [u8]) -> usize {
         buf[0] = (self.src_port << 8) as u8;
         buf[1] = self.src_port as u8;
