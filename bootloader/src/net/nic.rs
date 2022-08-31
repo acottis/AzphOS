@@ -229,10 +229,10 @@ impl NetworkCard {
                 //A non zero status means a packet has arrived and is ready for processing
                 if rdesc.status != 0 {
                     // Read the data from the packet
-                    let buf: [u8; MTU] = core::ptr::read(rdesc.buffer as *const [u8; MTU]);
+                    let buf = &*core::ptr::slice_from_raw_parts(rdesc.buffer as *const u8, rdesc.len as usize);
 
                     // Try to parse the packet and add it to the array to hand back to the OS
-                    let packet = Packet::parse(&buf, rdesc.len as usize);
+                    let packet = Packet::parse(buf, rdesc.len as usize);
                     //crate::serial_print!("{:X?}\n", packet);
                     received_packets[packet_counter] = packet;
                     packet_counter += 1;

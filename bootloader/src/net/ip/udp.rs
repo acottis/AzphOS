@@ -1,4 +1,3 @@
-use super::MTU;
 use super::Serialise;
 
 /// The size of UDP header
