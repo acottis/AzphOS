@@ -232,7 +232,6 @@ impl NetworkCard {
                         rdesc.buffer as *const u8,
                         rdesc.len as usize,
                     );
-
                     // Try to parse the packet and add it to the array to hand back to the OS
                     let packet = Packet::parse(buf, rdesc.len as usize);
                     //crate::serial_print!("{:X?}\n", packet);

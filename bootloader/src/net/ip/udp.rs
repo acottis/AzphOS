@@ -9,6 +9,7 @@ pub struct Udp {
     dst_port: u16,
     pub len: u16,
     checksum: u16,
+    data: [u8; 1458],
 }
 
 impl Udp {
@@ -19,6 +20,7 @@ impl Udp {
             len: (len + UDP_HEADER_LEN) as u16,
             // Unimplemented
             checksum: 0,
+            data: [0u8; 1458],
         }
     }
 }
@@ -38,12 +40,18 @@ impl Serialise for Udp {
     }
 
     fn deserialise(buf: &[u8]) -> Self {
-        Self { 
-            src_port: (buf[0] as u16) << 8  | buf[1] as u16,
-            dst_port: (buf[2] as u16) << 8  | buf[3] as u16,
-            len:      (buf[4] as u16) << 8  | buf[5] as u16,
-            checksum: (buf[6] as u16) << 8  | buf[7] as u16,
-        }
+        let mut data = [0u8; 1458];
+        let len = (buf[4] as u16) << 8 | buf[5] as u16;
 
+        data[..(len as usize - UDP_HEADER_LEN)]
+            .copy_from_slice(&buf[UDP_HEADER_LEN..len as usize]);
+
+        Self {
+            src_port: (buf[0] as u16) << 8 | buf[1] as u16,
+            dst_port: (buf[2] as u16) << 8 | buf[3] as u16,
+            len,
+            checksum: (buf[6] as u16) << 8 | buf[7] as u16,
+            data,
+        }
     }
 }

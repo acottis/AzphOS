@@ -1,7 +1,7 @@
 use super::Serialise;
 use super::{Arp, ARP_LEN};
 use super::{Ethernet, ETHERNET_LEN};
-use super::{IPv4, IPV4_HEADER_LEN};
+use super::IPv4;
 
 #[derive(Clone, Copy, Debug)]
 pub struct Packet {
@@ -20,9 +20,7 @@ impl Packet {
             [0x80, 0x60] => {
                 EtherType::Arp(Arp::deserialise(&buf[ETHERNET_LEN..ETHERNET_LEN + ARP_LEN]))
             }
-            [0x08, 0x00] => EtherType::IPv4(IPv4::deserialise(
-                &buf[ETHERNET_LEN..],
-            )),
+            [0x08, 0x00] => EtherType::IPv4(IPv4::deserialise(&buf[ETHERNET_LEN..len])),
             _ => EtherType::Unknown,
         };
 

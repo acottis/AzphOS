@@ -103,3 +103,8 @@ unsafe extern "C" fn _aullrem(_a: usize, _b: usize) -> usize {
 unsafe extern "C" fn __CxxFrameHandler3() {
     unreachable!()
 }
+
+/// Checks if stack is too large, we need to overwrite this for our allocationless OS
+/// Remove this if we add an allocator!
+#[no_mangle]
+unsafe extern "C" fn _chkstk(){}

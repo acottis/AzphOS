@@ -39,7 +39,9 @@ pm_entry:
     mov ss, ax
 
     ; Set up a basic stack
-    mov esp, 0x7c00
+    ;mov esp, 0x7c00
+    ; Who needs an allocator anyway?
+    mov esp, 0x2000000
 
     push entry_point
     ; Jump into Rust! (entry_point is a defined variable during build)

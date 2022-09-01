@@ -37,9 +37,7 @@ impl NetworkStack {
                                 EtherType::IPv4(ipv4) => {
                                     crate::serial_print!("{ipv4:X?}\n");
                                 }
-                                _ => {
-                                    crate::serial_print!("Found junk packet\n");
-                                }
+                                _ => {}
                             }
                         }
                     }

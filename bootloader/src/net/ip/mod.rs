@@ -89,12 +89,12 @@ impl Serialise for IPv4 {
 
         let version_ihl = buf[0];
         let dcp_ecn = buf[1];
-        let total_len = (buf[2] as u16 ) << 8 | buf[3] as u16;
-        let identification = (buf[4] as u16 ) << 8 | buf[5] as u16;
-        let flags_fragmentoffset = (buf[6] as u16 ) << 8 | buf[7] as u16;
+        let total_len = (buf[2] as u16) << 8 | buf[3] as u16;
+        let identification = (buf[4] as u16) << 8 | buf[5] as u16;
+        let flags_fragmentoffset = (buf[6] as u16) << 8 | buf[7] as u16;
         let ttl = buf[8];
         let protocol_type = buf[9];
-        let header_checksum = (buf[10] as u16 ) << 8 | buf[11] as u16;
+        let header_checksum = (buf[10] as u16) << 8 | buf[11] as u16;
         src_ip.copy_from_slice(&buf[12..16]);
         dst_ip.copy_from_slice(&buf[16..20]);
 
@@ -103,18 +103,18 @@ impl Serialise for IPv4 {
             _ => unimplemented!(),
         };
 
-        Self { 
-            version_ihl, 
-            dcp_ecn, 
-            total_len, 
-            identification, 
-            flags_fragmentoffset, 
-            ttl, 
-            protocol_type, 
-            header_checksum, 
-            src_ip, 
-            dst_ip, 
-            protocol, 
+        Self {
+            version_ihl,
+            dcp_ecn,
+            total_len,
+            identification,
+            flags_fragmentoffset,
+            ttl,
+            protocol_type,
+            header_checksum,
+            src_ip,
+            dst_ip,
+            protocol,
         }
     }
 }
