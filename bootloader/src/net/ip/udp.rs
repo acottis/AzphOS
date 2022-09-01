@@ -38,6 +38,12 @@ impl Serialise for Udp {
     }
 
     fn deserialise(buf: &[u8]) -> Self {
-        todo!()
+        Self { 
+            src_port: (buf[0] as u16) << 8  | buf[1] as u16,
+            dst_port: (buf[2] as u16) << 8  | buf[3] as u16,
+            len:      (buf[4] as u16) << 8  | buf[5] as u16,
+            checksum: (buf[6] as u16) << 8  | buf[7] as u16,
+        }
+
     }
 }

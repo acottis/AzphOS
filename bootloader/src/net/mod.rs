@@ -7,8 +7,8 @@ mod packet;
 
 use arp::{Arp, ARP_LEN};
 use ethernet::{Ethernet, ETHERNET_LEN};
-use ip::{IPv4, IPV4_HEADER_LEN};
 use ip::dhcp::Dhcp;
+use ip::{IPv4, IPV4_HEADER_LEN};
 use packet::{EtherType, Packet};
 
 /// Maximum packet size we deal with, this is a mut ref to a buffer we pass around to create
@@ -29,15 +29,18 @@ impl NetworkStack {
             Ok(nic) => {
                 // Once we have a NIC we can use, we need an IPv4 Address
                 Dhcp::discover(&nic);
-
-                let packets = nic.receive();
-                for packet in packets {
-                    if let Some(packet) = packet {
-                        match packet.ether_type {
-                            EtherType::IPv4(ipv4) => {
-                                // Check for DHCP
+                loop {
+                    let packets = nic.receive();
+                    for packet in packets {
+                        if let Some(packet) = packet {
+                            match packet.ether_type {
+                                EtherType::IPv4(ipv4) => {
+                                    crate::serial_print!("{ipv4:X?}\n");
+                                }
+                                _ => {
+                                    crate::serial_print!("Found junk packet\n");
+                                }
                             }
-                            _ => {}
                         }
                     }
                 }

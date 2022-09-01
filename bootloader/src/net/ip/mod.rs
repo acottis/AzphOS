@@ -4,7 +4,6 @@ mod udp;
 use super::Ethernet;
 use super::Serialise;
 use super::MTU;
-use super::ethernet::ETHERNET_LEN;
 use udp::Udp;
 
 /// The size of IPv4 Headers, we dont support ipv4 options
@@ -99,7 +98,10 @@ impl Serialise for IPv4 {
         src_ip.copy_from_slice(&buf[12..16]);
         dst_ip.copy_from_slice(&buf[16..20]);
 
-        let protocol = Protocol::Udp(Udp::new(8));
+        let protocol = match protocol_type {
+            0x11 => Protocol::Udp(Udp::deserialise(&buf[IPV4_HEADER_LEN..])),
+            _ => unimplemented!(),
+        };
 
         Self { 
             version_ihl, 

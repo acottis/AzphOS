@@ -2,8 +2,8 @@
 //!
 use super::NetworkStack;
 use super::Serialise;
-use super::MTU;
 use super::ETHERNET_LEN;
+use super::MTU;
 
 pub const ARP_LEN: usize = 28;
 
@@ -97,15 +97,15 @@ impl Serialise for Arp {
         );
         eth.serialise(&mut buf[..ETHERNET_LEN]);
 
-        buf[ETHERNET_LEN + 0 .. ETHERNET_LEN + 2].copy_from_slice(&self.htype);
-        buf[ETHERNET_LEN + 2 .. ETHERNET_LEN + 4].copy_from_slice(&self.ptype);
+        buf[ETHERNET_LEN + 0..ETHERNET_LEN + 2].copy_from_slice(&self.htype);
+        buf[ETHERNET_LEN + 2..ETHERNET_LEN + 4].copy_from_slice(&self.ptype);
         buf[ETHERNET_LEN + 4] = self.hlen;
         buf[ETHERNET_LEN + 5] = self.plen;
-        buf[ETHERNET_LEN + 6 .. ETHERNET_LEN + 8].copy_from_slice(&self.oper);
-        buf[ETHERNET_LEN + 8 .. ETHERNET_LEN + 14].copy_from_slice(&self.sha);
-        buf[ETHERNET_LEN + 14.. ETHERNET_LEN + 18].copy_from_slice(&self.spa);
-        buf[ETHERNET_LEN + 18.. ETHERNET_LEN + 24].copy_from_slice(&self.tha);
-        buf[ETHERNET_LEN + 28.. ETHERNET_LEN + ARP_LEN].copy_from_slice(&self.tpa);
+        buf[ETHERNET_LEN + 6..ETHERNET_LEN + 8].copy_from_slice(&self.oper);
+        buf[ETHERNET_LEN + 8..ETHERNET_LEN + 14].copy_from_slice(&self.sha);
+        buf[ETHERNET_LEN + 14..ETHERNET_LEN + 18].copy_from_slice(&self.spa);
+        buf[ETHERNET_LEN + 18..ETHERNET_LEN + 24].copy_from_slice(&self.tha);
+        buf[ETHERNET_LEN + 28..ETHERNET_LEN + ARP_LEN].copy_from_slice(&self.tpa);
 
         ARP_LEN
     }
