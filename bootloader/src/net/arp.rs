@@ -1,11 +1,11 @@
 //! Deals with all things Arp
-//! 
+//!
 use super::NetworkStack;
 use super::Serialise;
-use super::ETHERNET_LEN;
 use super::MTU;
+use super::ETHERNET_LEN;
 
-const ARP_LEN: usize = 42;
+pub const ARP_LEN: usize = 28;
 
 /// This struct is a representation of an ARP Header
 #[derive(Debug, Clone, Copy)]
@@ -95,17 +95,17 @@ impl Serialise for Arp {
             self.sha,
             [0x8, 0x6],
         );
-        eth.serialise(buf);
+        eth.serialise(&mut buf[..ETHERNET_LEN]);
 
-        buf[ETHERNET_LEN..16].copy_from_slice(&self.htype);
-        buf[16..18].copy_from_slice(&self.ptype);
-        buf[18] = self.hlen;
-        buf[19] = self.plen;
-        buf[20..22].copy_from_slice(&self.oper);
-        buf[22..28].copy_from_slice(&self.sha);
-        buf[28..32].copy_from_slice(&self.spa);
-        buf[32..38].copy_from_slice(&self.tha);
-        buf[38..42].copy_from_slice(&self.tpa);
+        buf[ETHERNET_LEN + 0 .. ETHERNET_LEN + 2].copy_from_slice(&self.htype);
+        buf[ETHERNET_LEN + 2 .. ETHERNET_LEN + 4].copy_from_slice(&self.ptype);
+        buf[ETHERNET_LEN + 4] = self.hlen;
+        buf[ETHERNET_LEN + 5] = self.plen;
+        buf[ETHERNET_LEN + 6 .. ETHERNET_LEN + 8].copy_from_slice(&self.oper);
+        buf[ETHERNET_LEN + 8 .. ETHERNET_LEN + 14].copy_from_slice(&self.sha);
+        buf[ETHERNET_LEN + 14.. ETHERNET_LEN + 18].copy_from_slice(&self.spa);
+        buf[ETHERNET_LEN + 18.. ETHERNET_LEN + 24].copy_from_slice(&self.tha);
+        buf[ETHERNET_LEN + 28.. ETHERNET_LEN + ARP_LEN].copy_from_slice(&self.tpa);
 
         ARP_LEN
     }
@@ -113,21 +113,21 @@ impl Serialise for Arp {
     fn deserialise(buf: &[u8]) -> Self {
         let mut htype = [0u8; 2];
         let mut ptype = [0u8; 2];
-        let hlen = buf[18];
-        let plen = buf[19];
         let mut oper = [0u8; 2];
         let mut sha = [0u8; 6];
         let mut spa = [0u8; 4];
         let mut tha = [0u8; 6];
         let mut tpa = [0u8; 4];
 
-        htype.copy_from_slice(&buf[ETHERNET_LEN..16]);
-        ptype.copy_from_slice(&buf[16..18]);
-        oper.copy_from_slice(&buf[20..22]);
-        sha.copy_from_slice(&buf[22..28]);
-        spa.copy_from_slice(&buf[28..32]);
-        tha.copy_from_slice(&buf[32..38]);
-        tpa.copy_from_slice(&buf[38..42]);
+        htype.copy_from_slice(&buf[..2]);
+        ptype.copy_from_slice(&buf[2..4]);
+        let hlen = buf[4];
+        let plen = buf[6];
+        oper.copy_from_slice(&buf[6..8]);
+        sha.copy_from_slice(&buf[8..14]);
+        spa.copy_from_slice(&buf[14..18]);
+        tha.copy_from_slice(&buf[18..24]);
+        tpa.copy_from_slice(&buf[24..ARP_LEN]);
 
         Self {
             htype,

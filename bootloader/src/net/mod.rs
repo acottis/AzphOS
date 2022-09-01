@@ -5,10 +5,10 @@ mod ip;
 mod nic;
 mod packet;
 
-use arp::Arp;
+use arp::{Arp, ARP_LEN};
 use ethernet::{Ethernet, ETHERNET_LEN};
+use ip::{IPv4, IPV4_HEADER_LEN};
 use ip::dhcp::Dhcp;
-use ip::IPv4;
 use packet::{EtherType, Packet};
 
 /// Maximum packet size we deal with, this is a mut ref to a buffer we pass around to create

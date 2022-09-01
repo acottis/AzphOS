@@ -17,7 +17,7 @@ const ETHERNET: u8 = 1;
 
 /// This struct represents a DHCP payload of [`DHCP::PAYLOAD_LEN`] size which is fixed due to contraint on knowing size to serialise
 #[derive(Debug)]
-pub struct Dhcp{
+pub struct Dhcp {
     op: u8,
     htype: u8,
     hlen: u8,
@@ -37,7 +37,7 @@ pub struct Dhcp{
     options: [Option<Options<'static>>; 10],
 }
 
-impl  Dhcp  {
+impl Dhcp {
     fn new(src_mac: [u8; 6], msg_type: MessageType) -> Self {
         Self {
             op: BOOT_REQUEST,
@@ -105,21 +105,21 @@ impl Serialise for Dhcp {
         payload[44..108].copy_from_slice(&self.sname); // Unused
         payload[108..236].copy_from_slice(&self.file); // Unused
         payload[236..240].copy_from_slice(&self.magic); // DHCP Magic bytes
-        
+
         // Set DHCP Options
         let mut dhcp_ptr = 240;
         // For every option we want
         for opt in self.options {
-            if let Some(opt) = opt{
+            if let Some(opt) = opt {
                 // Allocate a buffer we can pass down to default evil rust!
                 let mut tmp_buf = [0u8; 50];
                 // Take the length so we can dynamically push on our option
                 let len = opt.serialise(&mut tmp_buf);
                 // Copy the option serialised into the UDP data
-                payload[dhcp_ptr .. dhcp_ptr + len].copy_from_slice(&tmp_buf[..len]);
+                payload[dhcp_ptr..dhcp_ptr + len].copy_from_slice(&tmp_buf[..len]);
                 // Increment the UDP data len
                 dhcp_ptr = dhcp_ptr + len;
-            }else{
+            } else {
                 break;
             }
         }
@@ -148,14 +148,14 @@ impl Serialise for Dhcp {
 
 #[derive(Clone, Copy, Debug)]
 pub enum MessageType {
-    Discover    = 1,
-    Offer       = 2,
-    Request     = 3,
-    Decline     = 4,
-    Ack         = 5,
-    Nak         = 6,
-    Release     = 7,
-    Inform      = 8,
+    Discover = 1,
+    Offer = 2,
+    Request = 3,
+    Decline = 4,
+    Ack = 5,
+    Nak = 6,
+    Release = 7,
+    Inform = 8,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -163,45 +163,45 @@ pub enum Options<'opt> {
     SubnetMask([u8; 4]),
     HostName(&'opt str),
     RequestedIPAddr([u8; 4]),
-    LeaseTime(u32),       
-    MessageType(MessageType), 
-    ServerIP([u8;4]),     
+    LeaseTime(u32),
+    MessageType(MessageType),
+    ServerIP([u8; 4]),
     ParameterRequestList([u8; 50]),
     MaxDhcpMessageSize(u16),
     ClientIdentifier(u8, [u8; 6]),
-    TftpServer(&'opt str), 
+    TftpServer(&'opt str),
     BootFile(&'opt str),
     ClientSystemArch(u16),
-    ClientNetInterfaceIdent((u8,u8)),
+    ClientNetInterfaceIdent((u8, u8)),
     ClientMachineIdent(u8),
     TftpServerIP([u8; 4]),
     End,
 }
 
-impl Options<'_>{
-    fn opcode(&self) -> u8{
+impl Options<'_> {
+    fn opcode(&self) -> u8 {
         match self {
             Self::SubnetMask(_) => 1,
             Self::HostName(_) => 12,
             Self::RequestedIPAddr(_) => 50,
-            Self::LeaseTime(_) => 51,     
-            Self::MessageType(_) => 53, 
-            Self::ServerIP(_) => 54,        
+            Self::LeaseTime(_) => 51,
+            Self::MessageType(_) => 53,
+            Self::ServerIP(_) => 54,
             Self::ParameterRequestList(_) => 55,
             Self::MaxDhcpMessageSize(_) => 57,
             Self::ClientIdentifier(_, _) => 61,
-            Self::TftpServer(_) => 66,      
-            Self::BootFile(_) => 67,      
-            Self::ClientSystemArch(_) => 93,   
-            Self::ClientNetInterfaceIdent(_) => 94,   
-            Self::ClientMachineIdent(_) => 97,  
-            Self::TftpServerIP(_) => 150,   
+            Self::TftpServer(_) => 66,
+            Self::BootFile(_) => 67,
+            Self::ClientSystemArch(_) => 93,
+            Self::ClientNetInterfaceIdent(_) => 94,
+            Self::ClientMachineIdent(_) => 97,
+            Self::TftpServerIP(_) => 150,
             Self::End => 255,
         }
     }
-} 
+}
 
-impl Serialise for Options<'_>{
+impl Serialise for Options<'_> {
     fn serialise(&self, tmp_buf: &mut [u8]) -> usize {
         tmp_buf[0] = self.opcode();
         match self {
@@ -210,25 +210,25 @@ impl Serialise for Options<'_>{
                 tmp_buf[1] = len as u8 - 2;
                 tmp_buf[2] = *msg as u8;
                 len
-            },
+            }
             Self::ServerIP(addr) => {
                 let len: usize = 6;
                 tmp_buf[1] = len as u8 - 2;
                 tmp_buf[2..6].copy_from_slice(addr);
                 len
-            },
+            }
             Self::TftpServer(addr) => {
                 let len: usize = addr.len() + 2;
                 tmp_buf[1] = addr.len() as u8;
-                tmp_buf[2..2+addr.len()].copy_from_slice(addr.as_bytes());
+                tmp_buf[2..2 + addr.len()].copy_from_slice(addr.as_bytes());
                 len
-            },
+            }
             Self::BootFile(file_path) => {
                 let len: usize = file_path.len() + 2;
                 tmp_buf[1] = file_path.len() as u8;
-                tmp_buf[2..2+file_path.len()].copy_from_slice(file_path.as_bytes());
+                tmp_buf[2..2 + file_path.len()].copy_from_slice(file_path.as_bytes());
                 len
-            },
+            }
             Self::LeaseTime(time) => {
                 let len: usize = 6;
                 tmp_buf[1] = len as u8 - 2;
@@ -237,25 +237,25 @@ impl Serialise for Options<'_>{
                 tmp_buf[4] = (time >> 8) as u8;
                 tmp_buf[5] = *time as u8;
                 len
-            },
+            }
             Self::SubnetMask(addr) => {
                 let len: usize = 6;
                 tmp_buf[1] = len as u8 - 2;
                 tmp_buf[2..6].copy_from_slice(addr);
                 len
-            },
-            Self::ClientIdentifier(_, _) => {0},
-            Self::ParameterRequestList(_) => {0},
-            Self::MaxDhcpMessageSize(_) => {0},
-            Self::RequestedIPAddr(_) => {0},
-            Self::HostName(_) => {0},
+            }
+            Self::ClientIdentifier(_, _) => 0,
+            Self::ParameterRequestList(_) => 0,
+            Self::MaxDhcpMessageSize(_) => 0,
+            Self::RequestedIPAddr(_) => 0,
+            Self::HostName(_) => 0,
             Self::ClientSystemArch(num) => {
                 let len: usize = 4;
                 tmp_buf[1] = len as u8 - 2;
                 tmp_buf[2] = (num << 8) as u8;
                 tmp_buf[3] = *num as u8;
                 len
-            },
+            }
             Self::ClientNetInterfaceIdent((major, minor)) => {
                 let len: usize = 5;
                 tmp_buf[1] = len as u8 - 2;
@@ -263,20 +263,20 @@ impl Serialise for Options<'_>{
                 tmp_buf[3] = *major;
                 tmp_buf[4] = *minor;
                 len
-            },
+            }
             Self::ClientMachineIdent(num) => {
                 let len: usize = 19;
                 tmp_buf[1] = len as u8 - 2;
                 tmp_buf[2] = *num;
                 len
-            },
+            }
             Self::TftpServerIP(addr) => {
                 let len: usize = 6;
                 tmp_buf[1] = len as u8 - 2;
                 tmp_buf[2..6].copy_from_slice(addr);
                 len
-            },
-            Self::End => { 1 },
+            }
+            Self::End => 1,
         }
     }
 

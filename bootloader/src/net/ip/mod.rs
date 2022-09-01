@@ -4,10 +4,11 @@ mod udp;
 use super::Ethernet;
 use super::Serialise;
 use super::MTU;
+use super::ethernet::ETHERNET_LEN;
 use udp::Udp;
 
 /// The size of IPv4 Headers, we dont support ipv4 options
-const IPV4_HEADER_LEN: usize = 20;
+pub const IPV4_HEADER_LEN: usize = 20;
 
 #[derive(Debug, Clone, Copy)]
 pub struct IPv4 {
@@ -84,7 +85,35 @@ impl Serialise for IPv4 {
     }
 
     fn deserialise(buf: &[u8]) -> Self {
-        todo!()
+        let mut src_ip = [0u8; 4];
+        let mut dst_ip = [0u8; 4];
+
+        let version_ihl = buf[0];
+        let dcp_ecn = buf[1];
+        let total_len = (buf[2] as u16 ) << 8 | buf[3] as u16;
+        let identification = (buf[4] as u16 ) << 8 | buf[5] as u16;
+        let flags_fragmentoffset = (buf[6] as u16 ) << 8 | buf[7] as u16;
+        let ttl = buf[8];
+        let protocol_type = buf[9];
+        let header_checksum = (buf[10] as u16 ) << 8 | buf[11] as u16;
+        src_ip.copy_from_slice(&buf[12..16]);
+        dst_ip.copy_from_slice(&buf[16..20]);
+
+        let protocol = Protocol::Udp(Udp::new(8));
+
+        Self { 
+            version_ihl, 
+            dcp_ecn, 
+            total_len, 
+            identification, 
+            flags_fragmentoffset, 
+            ttl, 
+            protocol_type, 
+            header_checksum, 
+            src_ip, 
+            dst_ip, 
+            protocol, 
+        }
     }
 }
 
