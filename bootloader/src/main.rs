@@ -2,7 +2,7 @@
 #![no_main]
 
 mod core_reqs;
-//mod display;
+// mod display;
 mod cpu;
 mod error;
 mod net;
@@ -18,12 +18,13 @@ fn panic(info: &core::panic::PanicInfo) -> ! {
     cpu::halt();
 }
 
-/// This function is called by `stage0.asm` after setting up 32bit mode and a stack at 0x7c00
+/// This function is called by `stage0.asm` after setting up 32bit mode and a
+/// stack at ~~0x7c00~~ 0x2000000
 /// ```x86asm
 /// call entry_point
 /// ```
 #[no_mangle]
-fn entry(entry_point: u16) {
+fn entry(entry_point: u64) {
     //clear!();
     serial_print!("We entered at: {:#X}\n", entry_point);
     serial_print!("Time is: {}\n", time::DateTime::now());
@@ -35,6 +36,4 @@ fn entry(entry_point: u16) {
     loop {
         net.update();
     }
-
-    // cpu::halt();
 }

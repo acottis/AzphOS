@@ -8,7 +8,7 @@ mod packet;
 use arp::{Arp, ARP_LEN};
 use ethernet::{Ethernet, ETHERNET_LEN};
 use ip::dhcp::Dhcp;
-use ip::{IPv4, IPV4_HEADER_LEN};
+use ip::{IPv4, Protocol};
 use packet::{EtherType, Packet};
 
 /// Maximum packet size we deal with, this is a mut ref to a buffer we pass around to create
@@ -35,7 +35,14 @@ impl NetworkStack {
                         if let Some(packet) = packet {
                             match packet.ether_type {
                                 EtherType::IPv4(ipv4) => {
-                                    crate::serial_print!("{ipv4:X?}\n");
+                                    match ipv4.protocol {
+                                        Protocol::Udp(udp) => {
+                                            if udp.dst_port == 68{
+                                                crate::serial_print!("Recieved DHCP!\n");
+                                                let dhcp = Dhcp::deserialise(&udp.data[..udp.len as usize]);
+                                            }
+                                        }
+                                    }
                                 }
                                 _ => {}
                             }

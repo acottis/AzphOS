@@ -1,6 +1,6 @@
-//! This is the hacky stuff we do to let the rust compiler compile in `#![no_std]` with
-//! [`i586-pc-windows-msvc`], not written by myself for the most part.
-//!
+//! This is the hacky stuff we do to let the rust compiler compile in
+//! `#![no_std]` with [`i586-pc-windows-msvc`], not written by myself for the
+//! most part.
 /// Whether or not floats are used. This is used by the MSVC calling convention
 /// and it just has to exist.
 #[export_name = "_fltused"]
@@ -12,9 +12,12 @@ pub static FLTUSED: usize = 0;
 /// * `dest` - Pointer to memory to copy to
 /// * `src`  - Pointer to memory to copy from
 /// * `n`    - Number of bytes to copy
-///
 #[no_mangle]
-pub unsafe extern "C" fn memmove(dest: *mut u8, src: *const u8, n: usize) -> *mut u8 {
+pub unsafe extern "C" fn memmove(
+    dest: *mut u8,
+    src: *const u8,
+    n: usize,
+) -> *mut u8 {
     if src < dest as *const u8 {
         // copy backwards
         let mut ii = n;
@@ -43,9 +46,12 @@ pub unsafe extern "C" fn memmove(dest: *mut u8, src: *const u8, n: usize) -> *mu
 /// * `dest` - Pointer to memory to copy to
 /// * `src`  - Pointer to memory to copy from
 /// * `n`    - Number of bytes to copy
-///
 #[no_mangle]
-pub unsafe extern "C" fn memcpy(dest: *mut u8, src: *const u8, n: usize) -> *mut u8 {
+pub unsafe extern "C" fn memcpy(
+    dest: *mut u8,
+    src: *const u8,
+    n: usize,
+) -> *mut u8 {
     memmove(dest, src, n)
 }
 /// libc `memcmp` implementation in Rust
@@ -75,7 +81,6 @@ unsafe extern "C" fn memcmp(s1: *const u8, s2: *const u8, n: usize) -> i32 {
 /// * `s` - Pointer to memory to set
 /// * `c` - Character to set `n` bytes in `s` to
 /// * `n` - Number of bytes to set
-///
 #[no_mangle]
 unsafe extern "C" fn memset(s: *mut u8, c: i32, n: usize) -> *mut u8 {
     let mut i = 0;
@@ -104,7 +109,7 @@ unsafe extern "C" fn __CxxFrameHandler3() {
     unreachable!()
 }
 
-/// Checks if stack is too large, we need to overwrite this for our allocationless OS
-/// Remove this if we add an allocator!
+/// Checks if stack is too large, we need to overwrite this for our
+/// allocationless OS Remove this if we add an allocator!
 #[no_mangle]
-unsafe extern "C" fn _chkstk(){}
+unsafe extern "C" fn _chkstk() {}

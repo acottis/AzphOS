@@ -1,5 +1,5 @@
-//! This module will provide a custom error handler so we can provide more meaningful errors
-//!
+//! This module will provide a custom error handler so we can provide more
+//! meaningful errors
 pub type Result<T> = core::result::Result<T, self::Error>;
 
 #[derive(Debug)]

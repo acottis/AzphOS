@@ -1,7 +1,6 @@
-//! This create is helper for any time we need to get information from the processor
-//! we wrap [`asm!`] in unsafe so we can reduce the amount of unsafe randomly scattered around our code
-//! Using [https://www.felixcloutier.com/x86/](https://www.felixcloutier.com/x86/) as a reference right now
-//!
+//! This create is helper for any time we need to get information from the
+//! processor we wrap [`asm!`] in unsafe so we can reduce the amount of unsafe
+//! randomly scattered around our code Using [https://www.felixcloutier.com/x86/](https://www.felixcloutier.com/x86/) as a reference right now
 #![allow(dead_code)]
 use core::arch::asm;
 /// Prevent the processor from rebooting by halting

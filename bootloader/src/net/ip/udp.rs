@@ -6,10 +6,10 @@ const UDP_HEADER_LEN: usize = 8;
 #[derive(Debug, Clone, Copy)]
 pub struct Udp {
     src_port: u16,
-    dst_port: u16,
+    pub dst_port: u16,
     pub len: u16,
     checksum: u16,
-    data: [u8; 1458],
+    pub data: [u8; 1458],
 }
 
 impl Udp {

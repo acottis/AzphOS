@@ -3,7 +3,6 @@
 type Result<T> = std::result::Result<T, self::Error>;
 
 /// Custom Error Enum for better Error reporting
-///
 #[derive(Debug)]
 enum Error {
     CouldNotReadSectionData,
@@ -24,10 +23,10 @@ enum Error {
 }
 
 /// Main program loop
-///
 fn main() {
     const FLATTENED_IMAGE_PATH: &str = "bootloader/build/bootloader.flat";
-    const BOOTLOADER_EXE: &str = "bootloader/target/i586-pc-windows-msvc/release/bootloader.exe";
+    const BOOTLOADER_EXE: &str =
+        "bootloader/target/i586-pc-windows-msvc/release/bootloader.exe";
 
     // This function compiles the bootloader that we will use as a stage0
     build_bootloader().expect("Failed to build bootloader");
@@ -47,28 +46,31 @@ fn main() {
         pe.image_base, pe.entry_point
     );
 
-    // Link the PE to the stage0.asm bootloader and set the entry point to match the PE first instruction
-    build_asm(pe.image_base + pe.entry_point).expect("Cannot assemble stage0.asm");
+    // Link the PE to the stage0.asm bootloader and set the entry point to match
+    // the PE first instruction
+    build_asm(pe.image_base + pe.entry_point)
+        .expect("Cannot assemble stage0.asm");
     println!("PE Written to: {}", FLATTENED_IMAGE_PATH);
 
-    // Tells the user how much space they have left, does not include the stag0.asm
+    // Tells the user how much space they have left, does not include the
+    // stag0.asm
     println!(
         "Bootloader is {:#X} out of {:#X}, {:.2}% used",
         rust_len,
-        0x8000,
-        (*rust_len as f32 / 0x8000 as f32) * 100f32
+        0x2000000,
+        (*rust_len as f32 / 0x2000000 as f32) * 100f32
     );
 }
 /// This functions writes the flattened PE to disk
-///
 fn write_flattened_image(bytes: &[u8], path: &str) -> Result<()> {
     use std::io::Write;
-    let mut output = std::fs::File::create(path).map_err(Error::CantCreateBinary)?;
+    let mut output =
+        std::fs::File::create(path).map_err(Error::CantCreateBinary)?;
     output.write(bytes).map_err(Error::CantCreateBinary)?;
     Ok(())
 }
-/// This function compiles the assembly code with the entry point found in the PE
-///
+/// This function compiles the assembly code with the entry point found in the
+/// PE
 fn build_asm(entry: u32) -> Result<()> {
     use std::process::Command;
 
@@ -90,14 +92,15 @@ fn build_asm(entry: u32) -> Result<()> {
             Ok(())
         }
         Some(_) => {
-            let stderr = String::from_utf8(res.stderr).map_err(Error::CantConvertToUtf)?;
+            let stderr = String::from_utf8(res.stderr)
+                .map_err(Error::CantConvertToUtf)?;
             Err(Error::NasmBuildFailed(stderr))
         }
         None => Err(Error::CommandDidNotComplete),
     }
 }
-/// This function comiples the bootloader in the subfolder and returns an error if it fails
-///
+/// This function comiples the bootloader in the subfolder and returns an error
+/// if it fails
 fn build_bootloader() -> Result<()> {
     use std::process::Command;
 
@@ -113,15 +116,16 @@ fn build_bootloader() -> Result<()> {
             Ok(())
         }
         Some(_) => {
-            let stderr = String::from_utf8(res.stderr).map_err(Error::CantConvertToUtf)?;
+            let stderr = String::from_utf8(res.stderr)
+                .map_err(Error::CantConvertToUtf)?;
             Err(Error::CargoBuildFailed(stderr))
         }
         None => Err(Error::CommandDidNotComplete),
     }
 }
 
-/// Struct for storing information we consume from the PE and also contains the raw bytes
-///
+/// Struct for storing information we consume from the PE and also contains the
+/// raw bytes
 #[derive(Debug)]
 struct Pe {
     entry_point: u32,
@@ -133,7 +137,6 @@ struct Pe {
 impl Pe {
     /// Takes the ref to a path and parses the PE header
     /// [https://docs.microsoft.com/en-gb/windows/win32/debug/pe-format?redirectedfrom=MSDN#ms-dos-stub-image-only](https://docs.microsoft.com/en-gb/windows/win32/debug/pe-format?redirectedfrom=MSDN#ms-dos-stub-image-only)
-    ///
     fn parse(path: impl AsRef<std::path::Path>) -> Result<Self> {
         use std::io::Read;
         use std::io::{Seek, SeekFrom};
@@ -183,14 +186,20 @@ impl Pe {
         consume!(reader, u32, "Number of Symbol Table");
 
         // Size Of the Optional Header
-        let optional_header_size = consume!(reader, u16, "Size of Optional Header");
+        let optional_header_size =
+            consume!(reader, u16, "Size of Optional Header");
 
         // Get Characteristics
-        let _characteristics = Characteristics::get(consume!(reader, u16, "Characteristics"))?;
+        let _characteristics =
+            Characteristics::get(consume!(reader, u16, "Characteristics"))?;
         //println!("{:?}", characteristics);
 
         // Get COFF Field Magic
-        OptionalHeaderMagic::try_from(consume!(reader, u16, "Optional Header Magic"))?;
+        OptionalHeaderMagic::try_from(consume!(
+            reader,
+            u16,
+            "Optional Header Magic"
+        ))?;
 
         // Get MajorLinkerVersion
         consume!(reader, u8, "Major Linker Version");
@@ -223,7 +232,9 @@ impl Pe {
         // Skip to Section tabele
         reader
             .seek(SeekFrom::Start(
-                (header_pointer + COFF_HEADER_SIZE + optional_header_size as u32) as u64,
+                (header_pointer
+                    + COFF_HEADER_SIZE
+                    + optional_header_size as u32) as u64,
             ))
             .map_err(Error::Seek)?;
 
@@ -231,17 +242,23 @@ impl Pe {
         let mut sections: Vec<Section> = Vec::new();
 
         for _ in 0..num_of_sections {
-            let name =
-                String::from_utf8(consume!(reader, u64, "Section Name").to_le_bytes().to_vec())
-                    .map_err(Error::CantConvertToUtf)?;
+            let name = String::from_utf8(
+                consume!(reader, u64, "Section Name").to_le_bytes().to_vec(),
+            )
+            .map_err(Error::CantConvertToUtf)?;
             let virtual_size = consume!(reader, u32, "Virtual Size");
             let virtual_addr = consume!(reader, u32, "Virtual Address");
             let sizeof_rawdata = consume!(reader, u32, "Size Of Raw Data");
-            let pointerto_rawdata = consume!(reader, u32, "Pointer to Raw Data");
-            let pointerto_relocations = consume!(reader, u32, "Pointer to Relocations");
-            let pointerto_linenumbers = consume!(reader, u32, "Pointer to Line Numbers");
-            let num_of_relocations = consume!(reader, u16, "Number of Relocations");
-            let num_of_linenumbers = consume!(reader, u16, "Number of Line Numbers");
+            let pointerto_rawdata =
+                consume!(reader, u32, "Pointer to Raw Data");
+            let pointerto_relocations =
+                consume!(reader, u32, "Pointer to Relocations");
+            let pointerto_linenumbers =
+                consume!(reader, u32, "Pointer to Line Numbers");
+            let num_of_relocations =
+                consume!(reader, u16, "Number of Relocations");
+            let num_of_linenumbers =
+                consume!(reader, u16, "Number of Line Numbers");
             let characteristics = consume!(reader, u32, "Characteristics");
 
             sections.push(Section {
@@ -270,7 +287,6 @@ impl Pe {
         })
     }
     /// Converts the sections into a flat binary we can append to our stage0.asm
-    ///
     fn flatten(&self) -> Result<Vec<u8>> {
         println!("{:#X?}", self.sections);
         // Creating our small binary
@@ -287,7 +303,8 @@ impl Pe {
             } else {
                 &[0u8; 0]
             };
-            //let to_copy: usize = std::cmp::min(section.virtual_size, section.sizeof_rawdata) as usize;
+            //let to_copy: usize = std::cmp::min(section.virtual_size,
+            // section.sizeof_rawdata) as usize;
             program.resize(section.virtual_addr as usize, 0);
             program.extend_from_slice(bytes);
         }
@@ -297,7 +314,8 @@ impl Pe {
 }
 
 /// Helper for reading through file Buffer
-/// Takes an expression (BufReader), A Type Big enough for the field we are passing (u32), A String describing the field
+/// Takes an expression (BufReader), A Type Big enough for the field we are
+/// passing (u32), A String describing the field
 #[macro_export]
 macro_rules! consume {
     ($reader:expr, $ty:ty, $field:expr) => {{
@@ -314,7 +332,6 @@ macro_rules! consume {
 
 /// Machine Type
 /// [https://docs.microsoft.com/en-gb/windows/win32/debug/pe-format?redirectedfrom=MSDN#machine-types](https://docs.microsoft.com/en-gb/windows/win32/debug/pe-format?redirectedfrom=MSDN#machine-types)
-///
 #[repr(u16)]
 enum MachineType {
     I386,
@@ -348,7 +365,6 @@ impl TryFrom<u16> for OptionalHeaderMagic {
 }
 
 /// https://docs.microsoft.com/en-gb/windows/win32/debug/pe-format?redirectedfrom=MSDN#characteristics
-///
 #[repr(u16)]
 #[derive(Debug)]
 enum Characteristics {
@@ -376,25 +392,35 @@ impl Characteristics {
         if bytes & Self::RelocsStripped as u16 == Self::RelocsStripped as u16 {
             characteristics.push(Self::RelocsStripped)
         }
-        if bytes & Self::ExecutableImage as u16 == Self::ExecutableImage as u16 {
+        if bytes & Self::ExecutableImage as u16 == Self::ExecutableImage as u16
+        {
             characteristics.push(Self::ExecutableImage)
         }
-        if bytes & Self::LineNumsStripped as u16 == Self::LineNumsStripped as u16 {
+        if bytes & Self::LineNumsStripped as u16
+            == Self::LineNumsStripped as u16
+        {
             characteristics.push(Self::LineNumsStripped)
         }
-        if bytes & Self::LocalSymsStripped as u16 == Self::LocalSymsStripped as u16 {
+        if bytes & Self::LocalSymsStripped as u16
+            == Self::LocalSymsStripped as u16
+        {
             characteristics.push(Self::LocalSymsStripped)
         }
-        if bytes & Self::AggressiveWSTrim as u16 == Self::AggressiveWSTrim as u16 {
+        if bytes & Self::AggressiveWSTrim as u16
+            == Self::AggressiveWSTrim as u16
+        {
             characteristics.push(Self::AggressiveWSTrim)
         }
-        if bytes & Self::LargeAddressAware as u16 == Self::LargeAddressAware as u16 {
+        if bytes & Self::LargeAddressAware as u16
+            == Self::LargeAddressAware as u16
+        {
             characteristics.push(Self::LargeAddressAware)
         }
         if bytes & Self::Reserved as u16 == Self::Reserved as u16 {
             characteristics.push(Self::Reserved)
         }
-        if bytes & Self::BytesReversedLo as u16 == Self::BytesReversedLo as u16 {
+        if bytes & Self::BytesReversedLo as u16 == Self::BytesReversedLo as u16
+        {
             characteristics.push(Self::BytesReversedLo)
         }
         if bytes & Self::Bits32 as u16 == Self::Bits32 as u16 {
@@ -403,7 +429,9 @@ impl Characteristics {
         if bytes & Self::DebugStipped as u16 == Self::DebugStipped as u16 {
             characteristics.push(Self::DebugStipped)
         }
-        if bytes & Self::RemovableRunFromSwap as u16 == Self::RemovableRunFromSwap as u16 {
+        if bytes & Self::RemovableRunFromSwap as u16
+            == Self::RemovableRunFromSwap as u16
+        {
             characteristics.push(Self::RemovableRunFromSwap)
         }
         if bytes & Self::NetRunFromSwap as u16 == Self::NetRunFromSwap as u16 {
@@ -418,7 +446,8 @@ impl Characteristics {
         if bytes & Self::UpSystemOnly as u16 == Self::UpSystemOnly as u16 {
             characteristics.push(Self::UpSystemOnly)
         }
-        if bytes & Self::BytesReversedHi as u16 == Self::BytesReversedHi as u16 {
+        if bytes & Self::BytesReversedHi as u16 == Self::BytesReversedHi as u16
+        {
             characteristics.push(Self::BytesReversedHi)
         }
         Ok(characteristics)

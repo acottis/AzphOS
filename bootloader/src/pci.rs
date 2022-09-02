@@ -1,5 +1,5 @@
-//! This is where we enumerate all the PCI devices and find the ones we want to use to expose to other
-//! parts of the OS
+//! This is where we enumerate all the PCI devices and find the ones we want to
+//! use to expose to other parts of the OS
 use crate::cpu;
 
 /// PCI Magic numbers
@@ -14,7 +14,6 @@ const PCI_DEVICE_LEN: u32 = 32;
 const PCI_FUNCTION_LEN: u32 = 8;
 
 /// This struct holds the data for a header type 0x0 PCI Device
-///
 #[derive(Debug, Copy, Clone)]
 #[repr(C)]
 #[allow(dead_code)]
@@ -92,16 +91,18 @@ impl Device {
             self.header.base_addr_5,
         ]
     }
-    /// Returns the [`device_id`] and [`vendor_id`] for validation that we support this device
+    /// Returns the [`device_id`] and [`vendor_id`] for validation that we
+    /// support this device
     pub fn did_vid(&self) -> (u16, u16) {
         (self.header.device_id, self.header.vendor_id)
     }
 }
-/// Struct that holds an Array of  [`Devices`] that we can expose to other modules
+/// Struct that holds an Array of  [`Devices`] that we can expose to other
+/// modules
 #[derive(Debug)]
 pub struct Devices([Option<Device>; 10]);
-/// Starts the process of finding the PCI devices and exposing them to the rest of the program
-/// We brute force all possible addresses
+/// Starts the process of finding the PCI devices and exposing them to the rest
+/// of the program We brute force all possible addresses
 pub fn init() -> Devices {
     let mut pci_devices: Devices = Devices(Default::default());
     let mut found = 0;
@@ -120,8 +121,8 @@ pub fn init() -> Devices {
 }
 
 impl Devices {
-    /// Returns the first NIC it finds of type [`Some`] [`Device`] and [`None`] if no PCI NIC is found
-    ///
+    /// Returns the first NIC it finds of type [`Some`] [`Device`] and [`None`]
+    /// if no PCI NIC is found
     pub fn get_nic(&self) -> Option<Device> {
         self.0.iter().find_map(|&device| match device {
             Some(d) => {
@@ -140,8 +141,11 @@ impl Devices {
 
 /// This function reads a dword (u32) from a PCI device address
 fn pci_read_32(bus: u32, device: u32, function: u32, offset: usize) -> u32 {
-    let address: u32 =
-        PCI_ENABLE_BIT | (bus << 16) | (device << 11) | (function << 8) | (offset & 0xFE) as u32;
+    let address: u32 = PCI_ENABLE_BIT
+        | (bus << 16)
+        | (device << 11)
+        | (function << 8)
+        | (offset & 0xFE) as u32;
     cpu::out32(PCI_CONFIG_ADDRESS, address);
     cpu::in32(PCI_CONFIG_DATA)
 }

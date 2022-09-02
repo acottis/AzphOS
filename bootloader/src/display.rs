@@ -9,11 +9,9 @@ static mut OFFSET: isize = 0;
 
 /// This struct is the main VGA logic and interacts with the VGA buffer at base 0xB8000 with an offset
 /// Handles `\n` as a carridge return
-/// 
 struct Vga;
 impl Vga{
-    /// Writes to the VGA buffer and handles new lines
-    /// 
+    /// Writes to the VGA buffer and handles new lines 
     fn write(&self, bytes: &[u8]){
         let buffer_base = 0xB8000 as *mut u16;
         unsafe { 

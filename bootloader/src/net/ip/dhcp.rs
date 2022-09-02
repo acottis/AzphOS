@@ -1,5 +1,4 @@
 //! Here we deal with all things DHCP, and publish a service [`Deamon`]
-//!
 
 use super::Protocol;
 use super::Serialise;
@@ -15,7 +14,8 @@ const BOOT_REQUEST: u8 = 1;
 /// Hardware type ethernet
 const ETHERNET: u8 = 1;
 
-/// This struct represents a DHCP payload of [`DHCP::PAYLOAD_LEN`] size which is fixed due to contraint on knowing size to serialise
+/// This struct represents a DHCP payload of [`DHCP::PAYLOAD_LEN`] size which is
+/// fixed due to contraint on knowing size to serialise
 #[derive(Debug)]
 pub struct Dhcp {
     op: u8,
@@ -116,7 +116,8 @@ impl Serialise for Dhcp {
                 // Take the length so we can dynamically push on our option
                 let len = opt.serialise(&mut tmp_buf);
                 // Copy the option serialised into the UDP data
-                payload[dhcp_ptr..dhcp_ptr + len].copy_from_slice(&tmp_buf[..len]);
+                payload[dhcp_ptr..dhcp_ptr + len]
+                    .copy_from_slice(&tmp_buf[..len]);
                 // Increment the UDP data len
                 dhcp_ptr = dhcp_ptr + len;
             } else {
@@ -124,7 +125,8 @@ impl Serialise for Dhcp {
             }
         }
 
-        // Create the UDP struct so we can pass to IPv4, IPv4 needs to know total packet len
+        // Create the UDP struct so we can pass to IPv4, IPv4 needs to know
+        // total packet len
         let udp = Udp::new(dhcp_ptr);
 
         // Create an IPv4 header
@@ -135,7 +137,8 @@ impl Serialise for Dhcp {
         let udp_len = udp.serialise(&mut buf[packet_size..]);
         packet_size += udp_len;
 
-        buf[packet_size..packet_size + dhcp_ptr].copy_from_slice(&payload[..dhcp_ptr]);
+        buf[packet_size..packet_size + dhcp_ptr]
+            .copy_from_slice(&payload[..dhcp_ptr]);
         packet_size += dhcp_ptr;
 
         packet_size
@@ -226,7 +229,8 @@ impl Serialise for Options<'_> {
             Self::BootFile(file_path) => {
                 let len: usize = file_path.len() + 2;
                 tmp_buf[1] = file_path.len() as u8;
-                tmp_buf[2..2 + file_path.len()].copy_from_slice(file_path.as_bytes());
+                tmp_buf[2..2 + file_path.len()]
+                    .copy_from_slice(file_path.as_bytes());
                 len
             }
             Self::LeaseTime(time) => {

@@ -21,7 +21,7 @@ pub struct IPv4 {
     header_checksum: u16,
     src_ip: [u8; 4],
     dst_ip: [u8; 4],
-    protocol: Protocol,
+    pub protocol: Protocol,
 }
 
 impl IPv4 {
@@ -56,7 +56,8 @@ impl IPv4 {
             total += tmp;
         }
         total = (total + (total >> 16)) & 0x0000FFFF;
-        // This catches the wierd edge case where our carry creates another carry
+        // This catches the wierd edge case where our carry creates another
+        // carry
         total = total + (total >> 16);
 
         self.header_checksum = !total as u16;

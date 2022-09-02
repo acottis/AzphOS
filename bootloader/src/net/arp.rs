@@ -1,5 +1,4 @@
 //! Deals with all things Arp
-//!
 use super::NetworkStack;
 use super::Serialise;
 use super::ETHERNET_LEN;
@@ -56,7 +55,8 @@ impl Arp {
     fn who_has(ns: &NetworkStack, target_ipv4: [u8; 4]) {
         let mut buf = [0u8; MTU];
 
-        let arp = Arp::new([0, 1], ns.nic.mac, [0xFFu8; 6], ns.ip_addr, target_ipv4);
+        let arp =
+            Arp::new([0, 1], ns.nic.mac, [0xFFu8; 6], ns.ip_addr, target_ipv4);
         let len = arp.serialise(&mut buf);
 
         ns.nic.send(&buf, len)
@@ -65,7 +65,8 @@ impl Arp {
     fn reply(&self, ns: &NetworkStack) {
         let mut buf = [0u8; MTU];
 
-        let reply = Arp::new([0, 2], ns.nic.mac, self.sha, ns.ip_addr, self.spa);
+        let reply =
+            Arp::new([0, 2], ns.nic.mac, self.sha, ns.ip_addr, self.spa);
         let len = reply.serialise(&mut buf);
 
         ns.nic.send(&mut buf, len)
@@ -105,7 +106,8 @@ impl Serialise for Arp {
         buf[ETHERNET_LEN + 8..ETHERNET_LEN + 14].copy_from_slice(&self.sha);
         buf[ETHERNET_LEN + 14..ETHERNET_LEN + 18].copy_from_slice(&self.spa);
         buf[ETHERNET_LEN + 18..ETHERNET_LEN + 24].copy_from_slice(&self.tha);
-        buf[ETHERNET_LEN + 28..ETHERNET_LEN + ARP_LEN].copy_from_slice(&self.tpa);
+        buf[ETHERNET_LEN + 28..ETHERNET_LEN + ARP_LEN]
+            .copy_from_slice(&self.tpa);
 
         ARP_LEN
     }
