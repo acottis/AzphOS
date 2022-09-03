@@ -7,9 +7,9 @@ on:
   pull_request:
     branches: [ "main" ]
 
-# Gives us colour output for rust
-# env:
-#   CARGO_TERM_COLOR: always
+Gives us colour output for rust
+env:
+  CARGO_TERM_COLOR: always
 
 # Array of jobs
 jobs:
@@ -35,14 +35,14 @@ jobs:
       - name: Download the Repository
         uses: actions/checkout@v3
         # Run cargo unit tests
-      # - name: Cargo test all
-      #   run: cargo test --jobs 2 --release --verbose 
-      #   # Build PE-Parser which will build the bootloader
+      - name: Cargo test all
+        run: cargo test --jobs 2 --release --verbose 
+        # Build PE-Parser which will build the bootloader
       - name: Cargo Build Release
         run: cargo r --release --verbose
         # Lint the code to ensure consistant formatting
-      # - name: Cargo Format Lint Check
-      #   run: cargo fmt --all --check --verbose
-      #   # Run the rust clippy pedantic warning check
-      # - name: Cargo Clippy Pedant
-      #   run: cargo clippy
+      - name: Cargo Format Lint Check
+        run: cargo fmt --all --check --verbose
+        # Run the rust clippy pedantic warning check
+      - name: Cargo Clippy Pedant
+        run: cargo clippy
