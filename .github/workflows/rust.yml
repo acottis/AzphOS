@@ -20,12 +20,19 @@ jobs:
     # The actions to take
     steps:
         # Set up rust enviroment
-      - name: Install custom target
+      - name: Install Rust i586-pc-windows-msvc
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
           toolchain: stable
           target: i586-pc-windows-msvc
+        # Install nightly rustfmt and clippy
+      - name: Enable cargo fmt on nightly
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: nightly
+          components: rustfmt, clippy
         # Install LLD-LINK and sym link it then Nasm
       - name: Install Dependencies
         run: | 
@@ -42,21 +49,13 @@ jobs:
       - name: Cargo Build Release
         run: cargo r --release --verbose
         # Lint the code to ensure consistant formatting
-      - name: pe-parser cargo lint check
-        run: cargo fmt --all --check --verbose
+      - name: Cargo Format Check Pe-Parser
+        run: cargo +nightly fmt --all --check --verbose
         # Run the rust clippy pedantic warning check
       - name: Cargo Clippy Pedant
         run: cargo clippy
-        # Enable clipp for nightly
-      - name: Enable cargo fmt on nightly
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: nightly
-          components: rustfmt, clippy
         # Lint the bootloader to ensure consistant formatting
-      - name: Bootloader cargo lint check
+      - name: Cargo Format Check Bootloader
         run: | 
           cd bootloader
-          rustup component add rustfmt --toolchain nightly-x86_64-unknown-linux-gnu
-          cargo fmt --all --check --verbose
+          cargo +nightly fmt --all --check --verbose
