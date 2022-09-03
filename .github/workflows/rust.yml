@@ -29,7 +29,8 @@ jobs:
         # Install LLD-LINK
       - name: Install LLD-LINK
         run: | 
-          sudo apt-get install -y lld
+          sudo apt-get install -y lld-14
+          ln -s /usr/bin/lld-link-14 /usr/bin/lld-link
       - name: Download the Repository
         uses: actions/checkout@v3
         # Run cargo unit tests
