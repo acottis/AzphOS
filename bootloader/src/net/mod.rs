@@ -1,4 +1,5 @@
-//! We manage all things network in this module, this exposes the networking functionality to the other OS use cases
+//! We manage all things network in this module, this exposes the networking
+//! functionality to the other OS use cases
 mod arp;
 mod ethernet;
 mod ip;
@@ -11,8 +12,8 @@ use ip::dhcp::Dhcp;
 use ip::{IPv4, Protocol};
 use packet::{EtherType, Packet};
 
-/// Maximum packet size we deal with, this is a mut ref to a buffer we pass around to create
-/// our raw packet for sending to the NIC
+/// Maximum packet size we deal with, this is a mut ref to a buffer we pass
+/// around to create our raw packet for sending to the NIC
 const MTU: usize = 1500;
 
 pub struct NetworkStack {
@@ -22,8 +23,8 @@ pub struct NetworkStack {
 }
 
 impl NetworkStack {
-    /// We start our network stack, we create a NIC if we have a valid driver available
-    /// Then we look for an IPv4 Address
+    /// We start our network stack, we create a NIC if we have a valid driver
+    /// available Then we look for an IPv4 Address
     pub fn init() -> Option<Self> {
         match nic::init() {
             Ok(nic) => {
@@ -34,16 +35,18 @@ impl NetworkStack {
                     for packet in packets {
                         if let Some(packet) = packet {
                             match packet.ether_type {
-                                EtherType::IPv4(ipv4) => {
-                                    match ipv4.protocol {
-                                        Protocol::Udp(udp) => {
-                                            if udp.dst_port == 68{
-                                                crate::serial_print!("Recieved DHCP!\n");
-                                                let dhcp = Dhcp::deserialise(&udp.data[..udp.len as usize]);
-                                            }
+                                EtherType::IPv4(ipv4) => match ipv4.protocol {
+                                    Protocol::Udp(udp) => {
+                                        if udp.dst_port == 68 {
+                                            crate::serial_print!(
+                                                "Recieved DHCP!\n"
+                                            );
+                                            let dhcp = Dhcp::deserialise(
+                                                &udp.data[..udp.len as usize],
+                                            );
                                         }
                                     }
-                                }
+                                },
                                 _ => {}
                             }
                         }
@@ -70,8 +73,9 @@ impl NetworkStack {
             if let Some(packet) = packet {
                 match packet.ether_type {
                     EtherType::Arp(arp) => {
-                        // If we recieve an Arp we process it, replying to requests and updating
-                        // the arp table
+                        // If we recieve an Arp we process it, replying to
+                        // requests and updating the arp
+                        // table
                         arp.update(&self);
                     }
                     _ => {}

@@ -1,3 +1,5 @@
+[![Rust](https://github.com/acottis/AzphOS/actions/workflows/rust.yml/badge.svg)](https://github.com/acottis/AzphOS/actions/workflows/rust.yml)
+
 # AzphOS
 The allocationless OS! For performance.
 

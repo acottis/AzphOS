@@ -3,6 +3,7 @@
 type Result<T> = std::result::Result<T, self::Error>;
 
 /// Custom Error Enum for better Error reporting
+#[allow(dead_code)]
 #[derive(Debug)]
 enum Error {
     CouldNotReadSectionData,

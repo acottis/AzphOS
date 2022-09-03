@@ -43,7 +43,7 @@ impl Serialise for Udp {
         let mut data = [0u8; 1458];
         let len = (buf[4] as u16) << 8 | buf[5] as u16;
 
-        if len as usize > data.len(){
+        if len as usize > data.len() {
             panic!("Massive UDP Len: {len:?}");
         }
 

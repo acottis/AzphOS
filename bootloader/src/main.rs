@@ -10,7 +10,7 @@ mod pci;
 mod serial;
 mod time;
 
-// #[cfg(not(test))] is a fix for a Rust analyzer bug
+// This is a fix for a Rust analyzer bug
 #[cfg(not(test))]
 #[panic_handler]
 fn panic(info: &core::panic::PanicInfo) -> ! {
