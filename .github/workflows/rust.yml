@@ -46,6 +46,12 @@ jobs:
         # Run the rust clippy pedantic warning check
       - name: Cargo Clippy Pedant
         run: cargo clippy
+        # Enable clipp for nightly
+      - name: Enable cargo fmt on nightly
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          components: rustfmt, clippy
         # Lint the bootloader to ensure consistant formatting
       - name: Bootloader cargo lint check
         run: | 
