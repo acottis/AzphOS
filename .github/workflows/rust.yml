@@ -7,7 +7,7 @@ on:
   pull_request:
     branches: [ "main" ]
 
-Gives us colour output for rust
+# Gives us colour output for rust
 env:
   CARGO_TERM_COLOR: always
 
