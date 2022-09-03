@@ -50,4 +50,5 @@ jobs:
       - name: Bootloader cargo lint check
         run: | 
           cd bootloader
+          rustup component add rustfmt --toolchain nightly-x86_64-unknown-linux-gnu
           cargo fmt --all --check --verbose
