@@ -41,8 +41,13 @@ jobs:
       - name: Cargo Build Release
         run: cargo r --release --verbose
         # Lint the code to ensure consistant formatting
-      - name: Cargo Format Lint Check
+      - name: pe-parser cargo lint check
         run: cargo fmt --all --check --verbose
         # Run the rust clippy pedantic warning check
       - name: Cargo Clippy Pedant
         run: cargo clippy
+        # Lint the bootloader to ensure consistant formatting
+      - name: Bootloader cargo lint check
+        run: | 
+          cd bootloader
+          cargo fmt --all --check --verbose
