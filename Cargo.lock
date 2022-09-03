@@ -3,12 +3,5 @@
 version = 3
 
 [[package]]
-name = "bootloader"
-version = "0.1.0"
-
-[[package]]
 name = "pe-parser"
 version = "0.1.0"
-dependencies = [
- "bootloader",
-]
