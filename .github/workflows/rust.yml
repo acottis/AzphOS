@@ -25,9 +25,9 @@ jobs:
         # Run cargo unit tests
       - name: Cargo test all
         run: cargo test --jobs 2 --release --verbose 
-        # Build the binary in release mode
+        # Build PE-Parser which will build the bootloader
       - name: Cargo Build Release
-        run: cargo build --release --verbose
+        run: cargo r --release --verbose
         # Lint the code to ensure consistant formatting
       - name: Cargo Format Lint Check
         run: cargo fmt --all --check --verbose
