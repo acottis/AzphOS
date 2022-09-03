@@ -28,8 +28,9 @@ jobs:
         # Fetch the git code to the image
         # Install LLD-LINK
       - name: Install LLD-LINK
-        run: sudo apt install lld-link-11
-        run: ln -s /usr/bin/lld-link-11 /usr/bin/lld-link
+        run: | 
+          sudo apt install lld-link-11
+          ln -s /usr/bin/lld-link-11 /usr/bin/lld-link
       - name: Download the Repository
         uses: actions/checkout@v3
         # Run cargo unit tests
