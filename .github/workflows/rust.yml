@@ -8,8 +8,8 @@ on:
     branches: [ "main" ]
 
 # Gives us colour output for rust
-env:
-  CARGO_TERM_COLOR: always
+# env:
+#   CARGO_TERM_COLOR: always
 
 # Array of jobs
 jobs:
@@ -23,7 +23,6 @@ jobs:
       - name: Install custom target
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: nightly
           target: i586-pc-windows-msvc
         # Fetch the git code to the image
       - name: Download the Repository
