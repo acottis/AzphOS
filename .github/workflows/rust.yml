@@ -19,6 +19,12 @@ jobs:
     runs-on: ubuntu-latest
     # The actions to take
     steps:
+        # Set up rust enviroment
+      - name: Install custom target
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          target: i586-pc-windows-msvc
         # Fetch the git code to the image
       - name: Download the Repository
         uses: actions/checkout@v3
