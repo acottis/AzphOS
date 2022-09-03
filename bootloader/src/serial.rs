@@ -64,7 +64,7 @@ impl core::fmt::Write for SerialWriter {
         let serial_initialised = unsafe { SERIALPORTS[0] != 0 };
         if !serial_initialised {
             init();
-            crate::serial_print!("\x1b[1;32mInitialising Serial...\n");
+            crate::serial_print!("\n\x1b[1;32mInitialising Serial...\n");
         }
         write(s.as_bytes());
         Ok(())
