@@ -40,8 +40,7 @@ fn main() {
     let rust_len = &flattened_bytes.len();
 
     // Write the flat PE to a file
-    write_flattened_image(&flattened_bytes, FLATTENED_IMAGE_PATH)
-        .expect("Could not write image to disk");
+    write_flattened_image(&flattened_bytes, FLATTENED_IMAGE_PATH).unwrap();
     println!(
         "Image Base at: {:#X}, Entry Point in PE file is: {:#X}",
         pe.image_base, pe.entry_point
