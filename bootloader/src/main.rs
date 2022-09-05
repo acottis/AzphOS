@@ -30,7 +30,7 @@ fn entry(entry_point: u64) {
     serial_print!("Time is: {}\n", time::DateTime::now());
 
     // Try to initialise network, dont continue if we fail
-    let net = net::NetworkStack::init().unwrap();
+    let mut net = net::NetworkStack::init().unwrap();
 
     // Main OS loop
     loop {

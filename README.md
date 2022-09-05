@@ -9,10 +9,11 @@ The allocationless OS! For performance.
 2. ``LLD 13.0.0`` (This is cross platform) https://github.com/llvm/llvm-project/releases/tag/llvmorg-13.0.0 
 3. ```nasm``` https://www.nasm.us/pub/nasm/releasebuilds/?C=M;O=D 
 4. ```qemu-system-x86_64``` https://qemu.weilnetz.de/w64/
+5. ```make``` or ```nmake```
 
 ## Network Requirements to pxe boot (Optional)
 1. DHCP Server that can set PXE options https://github.com/acottis/dhcp-server
-2. Tftp Server that can send the OS to the BIOS https://github.com/acottis/tftp-server
+2. TFTP Server that can send the OS to the BIOS https://github.com/acottis/tftp-server
 3. Tap adapter
 
 ## Currently implemented
@@ -24,13 +25,13 @@ The allocationless OS! For performance.
 * NIC working, we get the NIC from the PCI devices list, we have an E1000 network driver which does basic send recieve. Packet structure parsing
 and reading are in but need a lot of work. We can handle ARP and DHCP right now in a very static way.
 
-## How to
+## How to build without a DHCP/TFTP server
 3. From the project root Directory
-2. (Windows) ```nmake``` (Linux) ```make```; 
+2. (Windows) ```nmake user``` (Linux) ```make user```; 
 
 
-## How to Network Boot
-1. Set up Tftp to host `stage0.bin`
-2. Set up DHCP to point to the Tftp
+## How to build with a DHCP/TFTP server
+1. Set up TFTP to host `stage0.bin`
+2. Set up DHCP to point to the TFTP
 3. From the project root Directory
 3. ```nmake tap``` to boot using a TAP adapter to give VM access to local network

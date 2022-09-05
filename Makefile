@@ -1,4 +1,4 @@
-default: local
+default: tap
 
 build:
 	cargo run
@@ -9,7 +9,8 @@ tap: build
 	-device e1000,netdev=mynet0,bootindex=0 -m 64 \
 	-serial telnet:localhost:4321,server,nowait
 
-local: build
-	qemu-system-x86_64 -monitor stdio -nographic \
-	-nic user,ipv6=off,model=virtio-net-pci,tftp=bootloader/build,bootfile=stage0.bin -m 64 \
+user: build
+	qemu-system-x86_64 -monitor stdio -nographic -m 64 \
+	-netdev user,id=mynet0,tftp=bootloader/build,bootfile=stage0.bin \
+	-device e1000,netdev=mynet0 \
 	-serial telnet:localhost:4321,server,nowait

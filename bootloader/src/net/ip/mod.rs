@@ -1,6 +1,7 @@
 pub mod dhcp;
 mod udp;
 
+use super::error::{Error, Result};
 use super::Ethernet;
 use super::Serialise;
 use super::MTU;
