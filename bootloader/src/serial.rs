@@ -1,5 +1,5 @@
 //! This crate is for managing all Serial Port related functionality and exposes
-//! as a macro [`serial_print!`] This macro can take format args and will print
+//! as a macro [`crate::serial_print!`] This macro can take format args and will print
 //! to Serial Port0 on the computer
 use crate::cpu;
 
@@ -70,7 +70,7 @@ impl core::fmt::Write for SerialWriter {
         Ok(())
     }
 }
-/// This macro is how the user accesses the serial port, our implementation of [`std::print!`](https://doc.rust-lang.org/std/macro.print.html)
+/// This macro is how the user accesses the serial port, our implementation of [std::print!](https://doc.rust-lang.org/std/macro.print.html)
 #[macro_export]
 macro_rules! serial_print {
     ($($arg:tt)*) => {{

@@ -1,5 +1,9 @@
+#![doc = include_str!("../../README.md")]
+
 #![no_std]
 #![no_main]
+#![allow(rustdoc::bare_urls)]
+// #![deny(rustdoc::all)]
 
 mod core_reqs;
 // mod display;
@@ -10,7 +14,7 @@ mod pci;
 mod serial;
 mod time;
 
-// This is a fix for a Rust analyzer bug
+/// Custom panic handler for our OS
 #[cfg(not(test))]
 #[panic_handler]
 fn panic(info: &core::panic::PanicInfo) -> ! {

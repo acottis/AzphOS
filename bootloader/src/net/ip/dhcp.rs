@@ -1,5 +1,6 @@
-//! Here we deal with all things DHCP, and publish a service [`Deamon`]
-
+//! Here we deal with all things DHCP, and publish a function
+//! called [update] that can be used called from main network loop
+//! to process DHCP 
 use super::{Error, Result};
 
 use super::Protocol;
@@ -19,8 +20,8 @@ const ETHERNET: u8 = 1;
 /// Options array buffer size
 const OPTIONS_BUF: usize = 20;
 
-/// This struct represents a DHCP payload of [`DHCP::PAYLOAD_LEN`] size which is
-/// fixed due to contraint on knowing size to serialise
+/// This struct is a human readable abstraction of DHCP data
+/// found on a UDP packet
 #[derive(Debug)]
 struct Dhcp<'a> {
     op: u8,

@@ -91,7 +91,7 @@ impl Device {
             self.header.base_addr_5,
         ]
     }
-    /// Returns the [`device_id`] and [`vendor_id`] for validation that we
+    /// Returns the [Device.header.device_id] and [Device.header.vendor_id] for validation that we
     /// support this device
     pub fn did_vid(&self) -> (u16, u16) {
         (self.header.device_id, self.header.vendor_id)

@@ -43,7 +43,7 @@ pub fn in32(addr: u16) -> u32 {
     }
     val
 }
-/// https://wiki.osdev.org/CMOS
+/// `<https://wiki.osdev.org/CMOS>`
 #[inline]
 pub fn rtc_register(offset: u8) -> u8 {
     out8(0x70, offset);

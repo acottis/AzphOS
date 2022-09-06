@@ -1,7 +1,7 @@
 //! This crate will manage the finding of network cards in a
 //! [`crate::pci::Device`] and initialising them and exposing to the rest of the
 //! OS our main entry points from our OS to our nic are [NetworkCard::send] and
-//! [NetworkCard::recieve]
+//! [NetworkCard::receive]
 use super::Packet;
 use super::MTU;
 use crate::error::{Error, Result};
