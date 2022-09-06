@@ -5,6 +5,7 @@ use super::{Error, Result};
 use super::Protocol;
 use super::Serialise;
 use super::Udp;
+use super::MAC_LEN;
 use super::MTU;
 
 /// DHCP Magic number to signal this is a DHCP packet
@@ -21,7 +22,7 @@ const OPTIONS_BUF: usize = 20;
 /// This struct represents a DHCP payload of [`DHCP::PAYLOAD_LEN`] size which is
 /// fixed due to contraint on knowing size to serialise
 #[derive(Debug)]
-pub struct Dhcp<'a> {
+struct Dhcp<'a> {
     op: u8,
     htype: u8,
     hlen: u8,
@@ -30,24 +31,24 @@ pub struct Dhcp<'a> {
     secs: [u8; 2],
     flags: [u8; 2],
     ciaddr: [u8; 4],
-    pub yiaddr: [u8; 4],
-    pub siaddr: [u8; 4],
+    yiaddr: [u8; 4],
+    siaddr: [u8; 4],
     giaddr: [u8; 4],
-    chaddr: [u8; 6],
+    chaddr: [u8; MAC_LEN],
     sname: [u8; 64],
     file: [u8; 128],
     magic: [u8; 4],
-    pub msg_type: MessageType,
+    msg_type: MessageType,
     options: [Option<Options<'a>>; OPTIONS_BUF],
 }
 
 impl<'a> Dhcp<'a> {
     /// Allows the user to create a new [Dhcp] packet
-    fn new(src_mac: [u8; 6], msg_type: MessageType) -> Self {
+    fn new(src_mac: [u8; MAC_LEN], msg_type: MessageType) -> Self {
         Self {
             op: BOOT_REQUEST,
             htype: ETHERNET,
-            hlen: 6,
+            hlen: MAC_LEN as u8,
             hops: 0,
             xid: TRANSACTION_ID,
             secs: [0u8; 2],
@@ -64,9 +65,8 @@ impl<'a> Dhcp<'a> {
             options: [None; OPTIONS_BUF],
         }
     }
-
     /// Parse a buffer and extract a [Dhcp] struct
-    pub fn parse(buf: &'a [u8]) -> Result<Self> {
+    fn parse(buf: &'a [u8]) -> Result<Self> {
         // Not a valid DHCP request
         let data_len = buf.len();
         if data_len < 240 {
@@ -79,10 +79,10 @@ impl<'a> Dhcp<'a> {
         let mut yiaddr: [u8; 4] = [0; 4];
         let mut siaddr: [u8; 4] = [0; 4];
         let mut giaddr: [u8; 4] = [0; 4];
-        let mut chaddr: [u8; 6] = [0; 6];
+        let mut chaddr: [u8; MAC_LEN] = [0; MAC_LEN];
         let mut sname: [u8; 64] = [0; 64];
         let mut file: [u8; 128] = [0; 128];
-        let mut magic: [u8; 4] = [0; 4];
+        let mut magic: [u8; DHCP_MAGIC.len()] = [0; DHCP_MAGIC.len()];
         let mut msg_type = None;
 
         let op = buf[0];
@@ -204,7 +204,7 @@ impl<'a> Dhcp<'a> {
             if res.is_some() {
                 options[options_counter] = res;
                 // Increment the number of parsed options
-                options_counter = options_counter + 1;
+                options_counter += 1;
             }
             // Options PTR increment and increment by len of DHCP Option + 1 as
             // options len doesnt count itself
@@ -237,7 +237,7 @@ impl<'a> Dhcp<'a> {
         })
     }
     /// This function performs and DHCP Request
-    pub fn request(&self, nic: &super::super::nic::NetworkCard) {
+    fn request(&self, nic: &super::super::nic::NetworkCard) {
         let mut request = Dhcp::new(nic.mac, MessageType::Request);
         request.xid = self.xid;
 
@@ -251,10 +251,10 @@ impl<'a> Dhcp<'a> {
         // Send it!
         let mut buf = [0u8; MTU];
         let len = request.serialise(&mut buf);
-        nic.send(&mut buf, len)
+        nic.send(&buf, len)
     }
     /// Broadcasts out a DHCP discover to everyone asking for an IP
-    pub fn discover(nic: &super::super::nic::NetworkCard) {
+    fn discover(nic: &super::super::nic::NetworkCard) {
         let mut discover = Dhcp::new(nic.mac, MessageType::Discover);
 
         let opts = [
@@ -267,7 +267,7 @@ impl<'a> Dhcp<'a> {
         let mut buf = [0u8; MTU];
         let len = discover.serialise(&mut buf);
 
-        nic.send(&mut buf, len)
+        nic.send(&buf, len)
     }
 }
 
@@ -313,7 +313,7 @@ impl Serialise for Dhcp<'_> {
                 payload[dhcp_ptr..dhcp_ptr + len]
                     .copy_from_slice(&tmp_buf[..len]);
                 // Increment the UDP data len
-                dhcp_ptr = dhcp_ptr + len;
+                dhcp_ptr += len;
             } else {
                 break;
             }
@@ -321,7 +321,7 @@ impl Serialise for Dhcp<'_> {
 
         // Create the UDP struct so we can pass to IPv4, IPv4 needs to know
         // total packet len
-        let udp = Udp::new(dhcp_ptr);
+        let udp = Udp::new(dhcp_ptr, 68, 67);
 
         // Create an IPv4 header
         let ipv4 = super::IPv4::new(Protocol::Udp(udp));
@@ -344,7 +344,7 @@ impl Serialise for Dhcp<'_> {
 }
 
 #[derive(Clone, Copy, Debug)]
-pub enum MessageType {
+enum MessageType {
     Discover = 1,
     Offer = 2,
     Request = 3,
@@ -376,7 +376,7 @@ impl TryFrom<u8> for MessageType {
 }
 
 #[derive(Clone, Copy, Debug)]
-pub enum Options<'opt> {
+enum Options<'opt> {
     SubnetMask([u8; 4]),
     HostName(&'opt str),
     RequestedIPAddr([u8; 4]),
@@ -504,9 +504,50 @@ impl Serialise for Options<'_> {
 }
 
 /// This enum is used to let us state machine way to getting an IP address
+#[derive(PartialEq, Eq, Debug)]
 pub enum Status {
     NeedIP,
     DiscoverSent,
     RequestSent,
     Acquired,
+}
+
+/// User accessible DHCP interface
+/// This function handles the DHCP state and transitions as we
+/// process DHCP packets
+#[inline(always)]
+pub fn update(ns: &mut super::super::NetworkStack, data: Option<&[u8]>) {
+    // If need an IP send a discover
+    if ns.dhcp_status == Status::NeedIP {
+        Dhcp::discover(&ns.nic);
+        ns.dhcp_status = Status::DiscoverSent;
+        return;
+    }
+
+    // If we get a UDP packet on port [DHCP_PORT] lets check if any data
+    // is in it
+    let dhcp = if let Some(data) = data {
+        Dhcp::parse(data).unwrap()
+    } else {
+        // No UDP data provided
+        return;
+    };
+    match dhcp.msg_type {
+        MessageType::Offer => {
+            dhcp.request(&ns.nic);
+            ns.dhcp_status = Status::RequestSent
+        }
+        MessageType::Ack => {
+            ns.ip_addr = dhcp.yiaddr;
+            ns.dhcp_status = Status::Acquired;
+            crate::serial_print!(
+                "IP Addr: {:?}, Recieved from {:?}\n",
+                ns.ip_addr,
+                dhcp.siaddr
+            );
+        }
+        // Ignore anything that is not an Offer or
+        // Ack
+        _ => {}
+    }
 }

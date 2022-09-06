@@ -1,4 +1,5 @@
 //! Deals with all things Arp
+
 use super::NetworkStack;
 use super::Serialise;
 use super::ETHERNET_LEN;
@@ -69,7 +70,7 @@ impl Arp {
             Arp::new([0, 2], ns.nic.mac, self.sha, ns.ip_addr, self.spa);
         let len = reply.serialise(&mut buf);
 
-        ns.nic.send(&mut buf, len)
+        ns.nic.send(&buf, len)
     }
     /// This function updates the arp table when we recieve ARP packets
     fn update_arp_table(&self, ns: &NetworkStack) {
@@ -106,8 +107,7 @@ impl Serialise for Arp {
         buf[ETHERNET_LEN + 8..ETHERNET_LEN + 14].copy_from_slice(&self.sha);
         buf[ETHERNET_LEN + 14..ETHERNET_LEN + 18].copy_from_slice(&self.spa);
         buf[ETHERNET_LEN + 18..ETHERNET_LEN + 24].copy_from_slice(&self.tha);
-        buf[ETHERNET_LEN + 28..ETHERNET_LEN + ARP_LEN]
-            .copy_from_slice(&self.tpa);
+        buf[ETHERNET_LEN + 24..ETHERNET_LEN + 28].copy_from_slice(&self.tpa);
 
         ARP_LEN
     }

@@ -13,10 +13,10 @@ pub struct Udp {
 }
 
 impl Udp {
-    pub fn new(len: usize) -> Self {
+    pub fn new(len: usize, src_port: u16, dst_port: u16) -> Self {
         Self {
-            src_port: (68 as u16),
-            dst_port: (67 as u16),
+            src_port,
+            dst_port,
             len: (len + UDP_HEADER_LEN) as u16,
             // Unimplemented
             checksum: 0,

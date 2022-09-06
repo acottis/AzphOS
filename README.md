@@ -29,9 +29,15 @@ and reading are in but need a lot of work. We can handle ARP and DHCP right now 
 3. From the project root Directory
 2. (Windows) ```nmake user``` (Linux) ```make user```; 
 
-
 ## How to build with a DHCP/TFTP server
 1. Set up TFTP to host `stage0.bin`
 2. Set up DHCP to point to the TFTP
 3. From the project root Directory
 3. ```nmake tap``` to boot using a TAP adapter to give VM access to local network
+
+## TODO
+- Implement ARP table
+- Create random XID for DHCP packet
+- Macro for serial/deserialing prototype?
+- Debug my network loop speed, look for gains
+- Turn on Doc missing error

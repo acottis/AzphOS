@@ -3,6 +3,11 @@ use super::Serialise;
 use super::{Arp, ARP_LEN};
 use super::{Ethernet, ETHERNET_LEN};
 
+/// Ethernet Ether Type Identifier
+const ETH_ETHER_TYPE: [u8; 2] = [0x08, 0x06];
+/// IPv4 Ether Type Identifier
+const IPV4_ETHER_TYPE: [u8; 2] = [0x08, 0x00];
+
 #[allow(dead_code)]
 #[derive(Clone, Copy, Debug)]
 pub struct Packet {
@@ -17,13 +22,14 @@ impl Packet {
         //crate::serial_print!("Recieved Packet, Len: {}, Data: {:?}\n", len,
         // &buf[..len]);
         let ethernet = Ethernet::deserialise(&buf[..ETHERNET_LEN]);
+        crate::serial_print!("{ethernet:?}\n");
         // The ethernet header tells us what type of packet it is, and we parse
         // accordingly
         let ether_type = match ethernet.ethertype {
-            [0x80, 0x60] => EtherType::Arp(Arp::deserialise(
+            ETH_ETHER_TYPE => EtherType::Arp(Arp::deserialise(
                 &buf[ETHERNET_LEN..ETHERNET_LEN + ARP_LEN],
             )),
-            [0x08, 0x00] => {
+            IPV4_ETHER_TYPE => {
                 EtherType::IPv4(IPv4::deserialise(&buf[ETHERNET_LEN..len]))
             }
             _ => EtherType::Unknown,

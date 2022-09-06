@@ -4,7 +4,7 @@ mod udp;
 use super::error::{Error, Result};
 use super::Ethernet;
 use super::Serialise;
-use super::MTU;
+use super::{MAC_LEN, MTU};
 use udp::Udp;
 
 /// The size of IPv4 Headers, we dont support ipv4 options

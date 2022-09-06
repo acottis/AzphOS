@@ -10,20 +10,24 @@ mod packet;
 use arp::{Arp, ARP_LEN};
 use error::{Error, Result};
 use ethernet::{Ethernet, ETHERNET_LEN};
-use ip::dhcp::{Dhcp, MessageType, Status};
+use ip::dhcp;
 use ip::{IPv4, Protocol};
 use packet::{EtherType, Packet};
 
 /// Maximum packet size we deal with, this is a mut ref to a buffer we pass
 /// around to create our raw packet for sending to the NIC
 const MTU: usize = 1500;
+/// DHCP UDP Port number we listen on
+const DHCP_PORT: u16 = 68;
+/// DHCP UDP Port number we listen on
+const MAC_LEN: usize = 6;
 
 pub struct NetworkStack {
     nic: nic::NetworkCard,
-    arp_table: [([u8; 6], [u8; 4]); 10],
+    arp_table: [([u8; MAC_LEN], [u8; 4]); 10],
     ip_addr: [u8; 4],
     /// State machine for DHCP
-    dhcp_status: Status,
+    dhcp_status: dhcp::Status,
 }
 
 impl NetworkStack {
@@ -37,7 +41,7 @@ impl NetworkStack {
                     nic,
                     arp_table: Default::default(),
                     ip_addr: [0, 0, 0, 0],
-                    dhcp_status: Status::NeedIP,
+                    dhcp_status: dhcp::Status::NeedIP,
                 })
             }
             Err(e) => {
@@ -50,50 +54,33 @@ impl NetworkStack {
     /// Here be dragons!
     pub fn update(&mut self) {
         // If our state is that we need an IP, start the DHCP process
-        match self.dhcp_status {
-            Status::NeedIP => {
-                Dhcp::discover(&self.nic);
-                self.dhcp_status = Status::DiscoverSent;
-            }
-            _ => {}
-        }
+        dhcp::update(self, None);
 
+        // Get the packets from the NIC and handle them before actioning
+        // any required packets
         let packets = self.nic.receive();
-        for packet in packets {
-            if let Some(packet) = packet {
-                match packet.ether_type {
-                    // Handle Arp packets
-                    EtherType::Arp(arp) => {
-                        // If we recieve an Arp we process it, replying to
-                        // requests and updating the arp table
-                        arp.update(&self);
-                    }
-                    // Handle IPv4 packets
-                    EtherType::IPv4(ipv4) => match ipv4.protocol {
-                        Protocol::Udp(udp) => {
-                            if udp.dst_port == 68 {
-                                let dhcp =
-                                    Dhcp::parse(&udp.data[..udp.len as usize])
-                                        .unwrap();
-                                match dhcp.msg_type {
-                                    MessageType::Offer => {
-                                        dhcp.request(&self.nic);
-                                        self.dhcp_status = Status::RequestSent
-                                    }
-                                    MessageType::Ack => {
-                                        self.ip_addr = dhcp.yiaddr;
-                                        self.dhcp_status = Status::Acquired;
-                                        crate::serial_print!("IP Addr: {:?}, Recieved from {:?}\n", self.ip_addr, dhcp.siaddr);
-                                    }
-                                    // Ignore anything that is not an Offer or
-                                    // Ack
-                                    _ => {}
-                                }
-                            }
-                        }
-                    },
-                    _ => {}
+        for packet in packets.iter().flatten() {
+            match packet.ether_type {
+                // Handle Arp packets
+                EtherType::Arp(ref arp) => {
+                    // If we recieve an Arp we process it, replying to
+                    // requests and updating the arp table
+                    arp.update(self);
                 }
+                // Handle IPv4 packets
+                EtherType::IPv4(ref ipv4) => match ipv4.protocol {
+                    Protocol::Udp(ref udp) => {
+                        if udp.dst_port == DHCP_PORT {
+                            // If we recieve a DHCP packet, send it off to the
+                            // DHCP Agent to handle
+                            dhcp::update(
+                                self,
+                                Some(&udp.data[..udp.len as usize]),
+                            );
+                        }
+                    }
+                },
+                _ => {}
             }
         }
     }
