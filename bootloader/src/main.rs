@@ -1,5 +1,4 @@
 #![doc = include_str!("../../README.md")]
-
 #![no_std]
 #![no_main]
 #![allow(rustdoc::bare_urls)]
@@ -18,8 +17,8 @@ mod time;
 #[cfg(not(test))]
 #[panic_handler]
 fn panic(info: &core::panic::PanicInfo) -> ! {
-    serial_print!("{}", info);
-    cpu::halt();
+	serial_print!("{}", info);
+	cpu::halt();
 }
 
 /// This function is called by `stage0.asm` after setting up 32bit mode and a
@@ -29,15 +28,15 @@ fn panic(info: &core::panic::PanicInfo) -> ! {
 /// ```
 #[no_mangle]
 fn entry(entry_point: u64) {
-    //clear!();
-    serial_print!("We entered at: {:#X}\n", entry_point);
-    serial_print!("Time is: {}\n", time::DateTime::now());
+	//clear!();
+	serial_print!("We entered at: {:#X}\n", entry_point);
+	serial_print!("Time is: {}\n", time::DateTime::now());
 
-    // Try to initialise network, dont continue if we fail
-    let mut net = net::NetworkStack::init().unwrap();
+	// Try to initialise network, dont continue if we fail
+	let mut net = net::NetworkStack::init().unwrap();
 
-    // Main OS loop
-    loop {
-        net.update();
-    }
+	// Main OS loop
+	loop {
+		net.update();
+	}
 }
