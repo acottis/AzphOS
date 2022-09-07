@@ -38,6 +38,6 @@ and reading are in but need a lot of work. We can handle ARP and DHCP right now 
 ## TODO
 - Implement ARP table
 - Create random XID for DHCP packet
+- Generate UDP Src ports
 - Macro for serial/deserialing prototype?
-- Debug my network loop speed, look for gains
-- Turn on Doc missing error
+- Move data from Udp to Packet

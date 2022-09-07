@@ -1,14 +1,12 @@
+use super::arp::{Arp, ARP_LEN};
 use super::IPv4;
 use super::NetworkStack;
 use super::Serialise;
 use super::MTU;
-use super::{Arp, ARP_LEN};
-use super::{Ethernet, ETHERNET_LEN};
-
-/// Ethernet Ether Type Identifier
-pub const ETH_ETHER_TYPE: [u8; 2] = [0x08, 0x06];
-/// IPv4 Ether Type Identifier
-pub const IPV4_ETHER_TYPE: [u8; 2] = [0x08, 0x00];
+use super::{
+	Ethernet, Protocol, ETHERNET_LEN, IPV4_HEADER_LEN, UDP_HEADER_LEN,
+};
+use super::{ETH_ETHER_TYPE, IPV4_ETHER_TYPE};
 
 #[allow(dead_code)]
 #[derive(Clone, Copy, Debug)]
@@ -16,6 +14,7 @@ pub struct Packet {
 	ethernet: Ethernet,
 	pub ether_type: EtherType,
 	len: usize,
+	pub data: Option<[u8; 1458]>,
 }
 
 impl Packet {
@@ -24,7 +23,8 @@ impl Packet {
 		//crate::serial_print!("Recieved Packet, Len: {}, Data: {:?}\n", len,
 		// &buf[..len]);
 		let ethernet = Ethernet::deserialise(&buf[..ETHERNET_LEN]);
-		crate::serial_print!("{ethernet:?}\n");
+		// Initialise data as None
+		let mut data = None;
 		// The ethernet header tells us what type of packet it is, and we parse
 		// accordingly
 		let ether_type = match ethernet.ethertype {
@@ -32,15 +32,26 @@ impl Packet {
 				&buf[ETHERNET_LEN..ETHERNET_LEN + ARP_LEN],
 			)),
 			IPV4_ETHER_TYPE => {
-				EtherType::IPv4(IPv4::deserialise(&buf[ETHERNET_LEN..len]))
+				let ip = IPv4::deserialise(&buf[ETHERNET_LEN..]);
+				match ip.protocol {
+					Protocol::Udp(udp) => {
+						let mut tmp = [0u8; 1458];
+						tmp[..(udp.len as usize - 8)].copy_from_slice(
+							&buf[ETHERNET_LEN + IPV4_HEADER_LEN + UDP_HEADER_LEN..len],
+						);
+						data = Some(tmp)
+					}
+				}
+				EtherType::IPv4(ip)
 			}
-			_ => EtherType::Unknown,
+			_ => EtherType::None,
 		};
 
 		Some(Self {
 			ethernet,
 			ether_type,
 			len,
+			data,
 		})
 	}
 	/// Creates a new [Packet] up to and including L3
@@ -92,5 +103,5 @@ impl Packet {
 pub enum EtherType {
 	Arp(Arp),
 	IPv4(IPv4),
-	Unknown,
+	None,
 }

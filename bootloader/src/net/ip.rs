@@ -1,7 +1,4 @@
-use super::error::{Error, Result};
-use super::Ethernet;
 use super::Serialise;
-use super::{MAC_LEN, MTU};
 
 /// The size of IPv4 Headers, we dont support ipv4 options
 pub const IPV4_HEADER_LEN: usize = 20;
@@ -37,7 +34,7 @@ impl IPv4 {
 			protocol_type: 0x11,
 			header_checksum: 0,
 			src_ip: [0x0; 4],
-			dst_ip: [0xFF; 4],
+			dst_ip: dst_ip,
 			protocol,
 		};
 		ipv4.checksum();

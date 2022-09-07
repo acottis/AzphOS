@@ -1,7 +1,5 @@
 //! We manage all things network in this module, this exposes the networking
 //! functionality to the other OS use cases
-mod arp;
-mod dhcp;
 mod error;
 mod ethernet;
 mod ip;
@@ -9,21 +7,27 @@ mod nic;
 mod packet;
 mod udp;
 
-use arp::{Arp, ARP_LEN};
+mod apps;
+
+use apps::arp;
+use apps::dhcp;
 use error::{Error, Result};
 use ethernet::{Ethernet, ETHERNET_LEN};
-use ip::{IPv4, Protocol};
-use packet::{EtherType, Packet, IPV4_ETHER_TYPE};
-use udp::Udp;
+use ip::{IPv4, Protocol, IPV4_HEADER_LEN};
+use packet::{EtherType, Packet};
+use udp::{Udp, UDP_HEADER_LEN};
 
 /// Maximum packet size we deal with, this is a mut ref to a buffer we pass
 /// around to create our raw packet for sending to the NIC
 const MTU: usize = 1500;
 /// DHCP UDP Port number we listen on
-const DHCP_PORT_SERVER: u16 = 67;
 const DHCP_PORT_CLIENT: u16 = 68;
 /// DHCP UDP Port number we listen on
 const MAC_LEN: usize = 6;
+/// Ethernet Ether Type Identifier
+pub const ETH_ETHER_TYPE: [u8; 2] = [0x08, 0x06];
+/// IPv4 Ether Type Identifier
+pub const IPV4_ETHER_TYPE: [u8; 2] = [0x08, 0x00];
 
 pub struct NetworkStack {
 	nic: nic::NetworkCard,
@@ -76,7 +80,10 @@ impl NetworkStack {
 						if udp.dst_port == DHCP_PORT_CLIENT {
 							// If we recieve a DHCP packet, send it off to the
 							// DHCP Agent to handle
-							dhcp::update(self, Some(&udp.data[..udp.len as usize]));
+							dhcp::update(
+								self,
+								Some(&packet.data.unwrap()[..udp.len as usize]),
+							);
 						}
 					}
 				},
