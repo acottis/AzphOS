@@ -75,17 +75,19 @@ impl Arp {
 	}
 	/// This function updates the arp table when we recieve ARP packets
 	fn update_arp_table(&self, ns: &mut NetworkStack) {
-		if self.sha == [0u8; 6] { return }
+		if self.sha == [0u8; 6] {
+			return;
+		}
 		let mut first_free_index: Option<usize> = None;
 		for (i, (sha, spa)) in ns.arp_table.iter_mut().enumerate() {
-			if *spa == self.spa{
-				if *sha == self.sha { 
+			if *spa == self.spa {
+				if *sha == self.sha {
 					// if IP and Hardware address are in already do nothing
-					return 
-				}else{
+					return;
+				} else {
 					// Update the MAC for the IP address
 					*sha = self.sha;
-					return
+					return;
 				}
 			}
 			if *spa == [0u8; 4] && first_free_index.is_none() {
@@ -93,7 +95,7 @@ impl Arp {
 			};
 		}
 		// If it was not found/updated enter in first empty slot
-		if let Some(i) = first_free_index{
+		if let Some(i) = first_free_index {
 			ns.arp_table[i] = (self.sha, self.spa)
 		};
 	}

@@ -240,7 +240,7 @@ impl NetworkCard {
 				let mut rdesc: Rdesc =
 					core::ptr::read(rdesc_base_ptr.offset(offset));
 
-				//A non zero status means a packet has arrived and is ready for
+				// A non zero status means a packet has arrived and is ready for
 				// processing
 				if rdesc.status != 0 {
 					// Read the data from the packet

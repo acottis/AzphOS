@@ -236,7 +236,7 @@ impl<'a> Dhcp<'a> {
 		})
 	}
 	/// This function performs and DHCP Request
-	fn request(&self, ns: &super::NetworkStack) {
+	fn request(&self, ns: &mut super::NetworkStack) {
 		let mut request = Dhcp::new(ns.nic.mac, MessageType::Request);
 		request.xid = self.xid;
 
@@ -256,10 +256,11 @@ impl<'a> Dhcp<'a> {
 			[255, 255, 255, 255],
 			DHCP_PORT_SERVER,
 			&buf[..len],
-		);
+		)
+		.unwrap();
 	}
 	/// Broadcasts out a DHCP discover to everyone asking for an IP
-	fn discover(ns: &super::NetworkStack) {
+	fn discover(ns: &mut super::NetworkStack) {
 		let mut discover = Dhcp::new(ns.nic.mac, MessageType::Discover);
 
 		let opts = [
@@ -278,7 +279,8 @@ impl<'a> Dhcp<'a> {
 			[255, 255, 255, 255],
 			DHCP_PORT_SERVER,
 			&buf[..len],
-		);
+		)
+		.unwrap();
 	}
 }
 
@@ -469,14 +471,14 @@ pub enum Status {
 /// User accessible DHCP interface
 /// This function handles the DHCP state and transitions as we
 /// process DHCP packets
+#[inline(always)]
 pub fn update(ns: &mut super::NetworkStack, data: Option<&[u8]>) {
 	// If need an IP send a discover
 	if ns.dhcp_status == Status::NeedIP {
-		Dhcp::discover(&ns);
+		Dhcp::discover(ns);
 		ns.dhcp_status = Status::DiscoverSent;
 		return;
 	}
-
 	// If we get a UDP packet on port [DHCP_PORT] lets check if any data
 	// is in it
 	let dhcp = if let Some(data) = data {
@@ -487,7 +489,7 @@ pub fn update(ns: &mut super::NetworkStack, data: Option<&[u8]>) {
 	};
 	match dhcp.msg_type {
 		MessageType::Offer => {
-			dhcp.request(&ns);
+			dhcp.request(ns);
 			ns.dhcp_status = Status::RequestSent
 		}
 		MessageType::Ack => {

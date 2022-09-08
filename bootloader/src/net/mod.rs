@@ -17,6 +17,8 @@ use ip::{IPv4, Protocol, IPV4_HEADER_LEN};
 use packet::{EtherType, Packet};
 use udp::{Udp, UDP_HEADER_LEN};
 
+use crate::serial_print;
+
 /// Maximum packet size we deal with, this is a mut ref to a buffer we pass
 /// around to create our raw packet for sending to the NIC
 const MTU: usize = 1500;
@@ -32,6 +34,8 @@ pub const IPV4_ETHER_TYPE: [u8; 2] = [0x08, 0x00];
 pub struct NetworkStack {
 	nic: nic::NetworkCard,
 	arp_table: [([u8; MAC_LEN], [u8; 4]); 10],
+	// IPs to send to ARP
+	requested_ips: [[u8; 4]; 5],
 	ip_addr: [u8; 4],
 	/// State machine for DHCP
 	dhcp_status: dhcp::Status,
@@ -44,9 +48,12 @@ impl NetworkStack {
 		match nic::init() {
 			Ok(nic) => {
 				// Once we have a NIC we can use, we need an IPv4 Address
+				let mut requested_ips = [[0u8; 4]; 5];
+				requested_ips[0] = [0xff; 4];
 				Some(Self {
 					nic,
 					arp_table: Default::default(),
+					requested_ips: [[0u8; 4]; 5],
 					ip_addr: [0, 0, 0, 0],
 					dhcp_status: dhcp::Status::NeedIP,
 				})
@@ -62,7 +69,6 @@ impl NetworkStack {
 	pub fn update(&mut self) {
 		// If our state is that we need an IP, start the DHCP process
 		dhcp::update(self, None);
-
 		// Get the packets from the NIC and handle them before actioning
 		// any required packets
 		let packets = self.nic.receive();
@@ -88,6 +94,22 @@ impl NetworkStack {
 					}
 				},
 				_ => {}
+			}
+		}
+	}
+	fn request_ip(&mut self, ip_addr: [u8; 4]) {
+		// Tidy up old ones
+		for (_, arp_ip) in self.arp_table {
+			for req_ip in self.requested_ips.iter_mut() {
+				if arp_ip == *req_ip {
+					*req_ip = [0u8; 4]
+				}
+			}
+		}
+		// Insert new requested IP
+		for ip in self.requested_ips.iter_mut() {
+			if *ip == [0u8; 4] {
+				*ip = ip_addr
 			}
 		}
 	}

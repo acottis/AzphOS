@@ -3,6 +3,7 @@ use super::IPv4;
 use super::NetworkStack;
 use super::Serialise;
 use super::MTU;
+use super::{Error, Result};
 use super::{
 	Ethernet, Protocol, ETHERNET_LEN, IPV4_HEADER_LEN, UDP_HEADER_LEN,
 };
@@ -56,15 +57,23 @@ impl Packet {
 	}
 	/// Creates a new [Packet] up to and including L3
 	pub fn send(
-		ns: &NetworkStack,
+		ns: &mut NetworkStack,
 		ether_type_opcode: [u8; 2],
 		dst_ip: [u8; 4],
 		dst_port: u16,
 		data: &[u8],
-	) {
-		// if dst_ip not in ns.arp_table { do logic! } TODO
-		// TODO TODO!!!!!!!!!!!!!!!!!!!!
-		let dst_mac = [0xFF; 6];
+	) -> Result<()> {
+		let mut dst_mac: Option<[u8; 6]> = None;
+		// while let Some((mac, ip)) =  ns.arp_table.iter().next(){
+		// 	if *ip == dst_ip{
+		// 		dst_mac = Some(*mac);
+		// 	}
+		// };
+		// if dst_mac.is_none(){
+		// 	ns.request_ip(dst_ip);
+		// 	return Err(Error::DestIPNotInArpTable(dst_ip))
+		// }
+		dst_mac = Some([0xFF; 6]);
 
 		// Track the size of our packet
 		let mut packet_size = 0;
@@ -73,7 +82,8 @@ impl Packet {
 
 		// ETHENET SERIALISE
 		// Create out ethernet header with the given opcode
-		let ethernet = Ethernet::new(dst_mac, ns.nic.mac, ether_type_opcode);
+		let ethernet =
+			Ethernet::new(dst_mac.unwrap(), ns.nic.mac, ether_type_opcode);
 		let ethernet_len = ethernet.serialise(&mut buf);
 		packet_size += ethernet_len;
 
@@ -95,7 +105,8 @@ impl Packet {
 			.copy_from_slice(&data[..data.len()]);
 		packet_size += data.len();
 
-		ns.nic.send(&buf, packet_size)
+		ns.nic.send(&buf, packet_size);
+		Ok(())
 	}
 }
 
