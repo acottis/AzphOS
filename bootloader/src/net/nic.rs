@@ -2,8 +2,7 @@
 //! [`crate::pci::Device`] and initialising them and exposing to the rest of the
 //! OS our main entry points from our OS to our nic are [NetworkCard::send] and
 //! [NetworkCard::receive]
-use super::Packet;
-use super::MTU;
+use super::{Packet, MTU};
 use crate::error::{Error, Result};
 
 // Supported Nics
@@ -28,14 +27,14 @@ const REG_RAL: u32 = 0x5400;
 const REG_RAH: u32 = 0x5404;
 
 const RECEIVE_DESC_BASE_ADDRESS: u64 = 0x800000;
-const RECEIVE_DESC_BUF_LENGTH: u32 = 8;
+const RECEIVE_DESC_BUF_LENGTH: u32 = 32;
 const RECEIVE_BASE_BUFFER_ADDRESS: u64 = 0x880000;
 const RECEIVE_QUEUE_HEAD_START: u32 = 20;
 const RECEIVE_QUEUE_TAIL_START: u32 = 4;
 
 // Transmit base addresses
 const TRANSMIT_DESC_BASE_ADDRESS: u64 = 0x900000;
-const TRANSMIT_DESC_BUF_LENGTH: u32 = 8;
+const TRANSMIT_DESC_BUF_LENGTH: u32 = 32;
 const TRANSMIT_BASE_BUFFER_ADDRESS: u64 = 0x980000;
 const TRANSMIT_QUEUE_HEAD_START: u32 = 0;
 const TRANSMIT_QUEUE_TAIL_START: u32 = 0;
@@ -226,10 +225,10 @@ impl NetworkCard {
 	}
 	/// This function processes the emails in buffer of buffer size
 	/// [RECEIVE_DESC_BUF_LENGTH]
-	pub fn receive(&self) -> [Option<Packet>; RECEIVE_DESC_BUF_LENGTH as usize] {
-		let mut received_packets: [Option<Packet>;
-			RECEIVE_DESC_BUF_LENGTH as usize] =
-			[Default::default(); RECEIVE_DESC_BUF_LENGTH as usize];
+	pub fn receive(
+		&self,
+		packets: &mut [Option<Packet>; RECEIVE_DESC_BUF_LENGTH as usize],
+	) {
 		let mut packet_counter = 0;
 		let rdesc_base_ptr = RECEIVE_DESC_BASE_ADDRESS as *mut Rdesc;
 
@@ -250,9 +249,9 @@ impl NetworkCard {
 					);
 					// Try to parse the packet and add it to the array to hand
 					// back to the OS
-					let packet = Packet::parse(buf, rdesc.len as usize);
+					let packet = Packet::parse(&buf[..rdesc.len as usize]);
 					//crate::serial_print!("{:X?}\n", packet);
-					received_packets[packet_counter] = packet;
+					packets[packet_counter] = packet;
 					packet_counter += 1;
 
 					// We have processed the packet and set status to 0 to
@@ -271,7 +270,6 @@ impl NetworkCard {
 				}
 			}
 		}
-		received_packets
 	}
 }
 /// Main entry point to net that sets up the drivers
