@@ -27,7 +27,7 @@ impl NetworkStack {
 				// Once we have a NIC we can use, we need an IPv4 Address
 				Some(Self {
 					nic,
-					ip_addr: [0, 0, 0, 0],
+					ip_addr: [192, 168, 10, 10],
 				})
 			}
 			Err(e) => {
@@ -46,8 +46,8 @@ impl NetworkStack {
 				Protocol::Ipv4(_) => {}
 				Protocol::Arp(arp) => {
 					let mut buf = [0u8; MTU];
-					arp.handle(&mut buf);
-					self.nic.send(&buf, MTU);
+					let len = arp.handle(&self, &mut buf);
+					self.nic.send(&buf, len);
 				}
 				Protocol::Unsupported => {}
 			}
