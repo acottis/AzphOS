@@ -2,7 +2,7 @@
 //! [`crate::pci::Device`] and initialising them and exposing to the rest of the
 //! OS our main entry points from our OS to our nic are [NetworkCard::send] and
 //! [NetworkCard::receive]
-use super::{Packet, MTU};
+use super::{Packet, Serialise, MTU};
 use crate::error::{Error, Result};
 
 // Supported Nics
@@ -249,7 +249,7 @@ impl NetworkCard {
 					);
 					// Try to parse the packet and add it to the array to hand
 					// back to the OS
-					let packet = Packet::parse(&buf[..rdesc.len as usize]);
+					let packet = Packet::try_deserialise(&buf[..rdesc.len as usize]);
 					//crate::serial_print!("{:X?}\n", packet);
 					packets[packet_counter] = packet;
 					packet_counter += 1;
