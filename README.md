@@ -12,8 +12,8 @@ The allocationless OS! For performance.
 5. ```make``` or ```nmake```
 
 ## Network Requirements to pxe boot (Optional)
-1. DHCP Server that can set PXE options https://github.com/acottis/dhcp-server
-2. TFTP Server that can send the OS to the BIOS https://github.com/acottis/tftp-server
+1. DHCP Server that can set PXE options [https://github.com/acottis/dhcp-server](https://github.com/acottis/dhc3po)
+2. TFTP Server that can send the OS to the BIOS [https://github.com/acottis/tftp-server](https://github.com/acottis/tftp3o)
 3. Tap adapter
 
 ## Currently implemented
