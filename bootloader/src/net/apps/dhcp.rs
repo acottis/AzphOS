@@ -495,10 +495,9 @@ pub fn update(ns: &mut super::NetworkStack, data: Option<&[u8]>) {
 		MessageType::Ack => {
 			ns.ip_addr = dhcp.yiaddr;
 			ns.dhcp_status = Status::Acquired;
-			crate::serial_print!(
+			print!(
 				"IP Addr: {:?}, Recieved from {:?}\n",
-				ns.ip_addr,
-				dhcp.siaddr
+				ns.ip_addr, dhcp.siaddr
 			);
 		}
 		// Ignore anything that is not an Offer or

@@ -1,11 +1,13 @@
 default: tap
 
+tap_if = virttap0
+
 build:
-	cargo run
+	cargo run --release
 
 tap: build
 	qemu-system-x86_64 -monitor stdio -nographic \
-	-netdev tap,id=mynet0,ifname=mytap \
+	-netdev tap,id=mynet0,ifname=$(tap_if),script=no \
 	-device e1000,netdev=mynet0,bootindex=0 -m 64 \
 	-serial telnet:localhost:4321,server,nowait
 

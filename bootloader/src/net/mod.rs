@@ -17,8 +17,6 @@ use ip::{IPv4, Protocol, IPV4_HEADER_LEN};
 use packet::{EtherType, Packet};
 use udp::{Udp, UDP_HEADER_LEN};
 
-use crate::serial_print;
-
 /// Maximum packet size we deal with, this is a mut ref to a buffer we pass
 /// around to create our raw packet for sending to the NIC
 const MTU: usize = 1500;
@@ -59,7 +57,7 @@ impl NetworkStack {
 				})
 			}
 			Err(e) => {
-				crate::serial_print!("Cannot init network: {:X?}", e);
+				print!("Cannot init network: {:X?}", e);
 				None
 			}
 		}

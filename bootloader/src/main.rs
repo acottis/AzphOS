@@ -4,20 +4,21 @@
 #![allow(rustdoc::bare_urls)]
 // #![deny(rustdoc::all)]
 
+#[macro_use]
+mod serial;
+
 mod core_reqs;
 // mod display;
 mod cpu;
 mod error;
 mod net;
 mod pci;
-mod serial;
 mod time;
 
 /// Custom panic handler for our OS
-#[cfg(not(test))]
 #[panic_handler]
 fn panic(info: &core::panic::PanicInfo) -> ! {
-	serial_print!("{}", info);
+	print!("{}", info);
 	cpu::halt();
 }
 
@@ -29,8 +30,8 @@ fn panic(info: &core::panic::PanicInfo) -> ! {
 #[no_mangle]
 fn entry(entry_point: u64) {
 	//clear!();
-	serial_print!("We entered at: {:#X}\n", entry_point);
-	serial_print!("Time is: {}\n", time::DateTime::now());
+	print!("We entered at: {:#X}\n", entry_point);
+	print!("Time is: {}\n", time::DateTime::now());
 
 	// Try to initialise network, dont continue if we fail
 	let mut net = net::NetworkStack::init().unwrap();

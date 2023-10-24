@@ -10,6 +10,15 @@ static BDA_SERIALPORTS: u16 = 0x400;
 /// unsafe if we ever had threads
 static mut SERIALPORTS: [u16; 4] = [0u16; 4];
 
+/// This macro is how the user accesses the serial port, our implementation of [std::print!](https://doc.rust-lang.org/std/macro.print.html)
+#[macro_export]
+macro_rules! print {
+    ($($arg:tt)*) => {{
+        let _ = core::fmt::Write::write_fmt(
+            &mut $crate::serial::SerialWriter, format_args!($($arg)*));
+    }}
+}
+
 /// This function uses the BDA defined area to look for serial ports, it is
 /// called if we see `SERIALPORTS` still has a 0 at its first index
 fn init() {
@@ -64,17 +73,9 @@ impl core::fmt::Write for SerialWriter {
 		let serial_initialised = unsafe { SERIALPORTS[0] != 0 };
 		if !serial_initialised {
 			init();
-			crate::serial_print!("\n\x1b[1;32mInitialising Serial...\n");
+			print!("\n\x1b[1;32mInitialising Serial...\n");
 		}
 		write(s.as_bytes());
 		Ok(())
 	}
-}
-/// This macro is how the user accesses the serial port, our implementation of [std::print!](https://doc.rust-lang.org/std/macro.print.html)
-#[macro_export]
-macro_rules! serial_print {
-    ($($arg:tt)*) => {{
-        let _ = core::fmt::Write::write_fmt(
-            &mut $crate::serial::SerialWriter, format_args!($($arg)*));
-    }}
 }

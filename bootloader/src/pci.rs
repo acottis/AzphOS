@@ -1,5 +1,7 @@
 //! This is where we enumerate all the PCI devices and find the ones we want to
 //! use to expose to other parts of the OS
+use core::mem::size_of;
+
 use crate::cpu;
 
 /// PCI Magic numbers
@@ -9,9 +11,9 @@ const PCI_CONFIG_DATA: u16 = 0xCFC;
 const PCI_CLASS_CODE_NETWORK: u8 = 0x2;
 const PCI_SUBCLASS_CODE_ETHERNET: u8 = 0x0;
 const PCI_REGISTER_LEN: usize = 0xF;
-const PCI_BUS_LEN: u32 = 256;
-const PCI_DEVICE_LEN: u32 = 32;
-const PCI_FUNCTION_LEN: u32 = 8;
+const PCI_BUS_LEN: u8 = 0xFF;
+const PCI_DEVICE_LEN: u8 = 32;
+const PCI_FUNCTION_LEN: u8 = 8;
 
 /// This struct holds the data for a header type 0x0 PCI Device
 #[derive(Debug, Copy, Clone)]
@@ -50,13 +52,16 @@ struct Header {
 
 impl Header {
 	// Goes through the PCI 128-bits and parses out the data
-	fn new(bus: u32, device: u32, function: u32) -> Self {
-		let mut raw_device = [0u32; PCI_REGISTER_LEN];
-		for (i, register) in raw_device.iter_mut().enumerate() {
-			*register = pci_read_32(bus, device, function, i * 4);
+	fn new(bus: u8, slot: u8, function: u8) -> Self {
+		let mut buffer = [0u32; size_of::<Self>() / size_of::<u32>()];
+
+		for (i, bytes) in buffer.iter_mut().enumerate() {
+			*bytes = pci_read_32(bus, slot, function, i as u8 * 4);
 		}
 
-		unsafe { core::ptr::read(raw_device.as_ptr() as *const Self) }
+		let header = unsafe { *(buffer.as_ptr() as *const Header) };
+
+		header
 	}
 }
 
@@ -65,14 +70,14 @@ impl Header {
 #[derive(Debug, Copy, Clone)]
 pub struct Device {
 	header: Header,
-	bus: u32,
-	device: u32,
-	function: u32,
+	bus: u8,
+	device: u8,
+	function: u8,
 }
 
 impl Device {
 	/// Creates a new Device when scanned in the PCI memory
-	fn new(bus: u32, device: u32, function: u32) -> Self {
+	fn new(bus: u8, device: u8, function: u8) -> Self {
 		Self {
 			header: Header::new(bus, device, function),
 			bus,
@@ -106,9 +111,10 @@ pub struct Devices([Option<Device>; 10]);
 pub fn init() -> Devices {
 	let mut pci_devices: Devices = Devices(Default::default());
 	let mut found = 0;
-	for bus in 0..PCI_BUS_LEN {
+	for bus in 0..=PCI_BUS_LEN {
 		for device in 0..PCI_DEVICE_LEN {
 			for function in 0..PCI_FUNCTION_LEN {
+				// If no PCI Device we recieve 0xFFFFFFFF
 				if pci_read_32(bus, device, function, 0) == !0 {
 					continue;
 				}
@@ -117,6 +123,7 @@ pub fn init() -> Devices {
 			}
 		}
 	}
+	print!("{:?}\n", pci_devices);
 	pci_devices
 }
 
@@ -140,12 +147,12 @@ impl Devices {
 }
 
 /// This function reads a dword (u32) from a PCI device address
-fn pci_read_32(bus: u32, device: u32, function: u32, offset: usize) -> u32 {
+fn pci_read_32(bus: u8, device: u8, function: u8, offset: u8) -> u32 {
 	let address: u32 = PCI_ENABLE_BIT
-		| (bus << 16)
-		| (device << 11)
-		| (function << 8)
-		| (offset & 0xFE) as u32;
+		| (bus as u32) << 16
+		| (device as u32) << 11
+		| (function as u32) << 8
+		| (offset as u32) & 0xFE;
 	cpu::out32(PCI_CONFIG_ADDRESS, address);
 	cpu::in32(PCI_CONFIG_DATA)
 }

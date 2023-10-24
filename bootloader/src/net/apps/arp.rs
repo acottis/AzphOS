@@ -1,7 +1,5 @@
 //! Deals with all things Arp
 
-use crate::serial_print;
-
 use super::NetworkStack;
 use super::Serialise;
 use super::MTU;
