@@ -10,7 +10,6 @@ const PCI_CONFIG_ADDRESS: u16 = 0xCF8;
 const PCI_CONFIG_DATA: u16 = 0xCFC;
 const PCI_CLASS_CODE_NETWORK: u8 = 0x2;
 const PCI_SUBCLASS_CODE_ETHERNET: u8 = 0x0;
-const PCI_REGISTER_LEN: usize = 0xF;
 const PCI_BUS_LEN: u8 = 0xFF;
 const PCI_DEVICE_LEN: u8 = 32;
 const PCI_FUNCTION_LEN: u8 = 8;
@@ -123,7 +122,6 @@ pub fn init() -> Devices {
 			}
 		}
 	}
-	print!("{:?}\n", pci_devices);
 	pci_devices
 }
 
